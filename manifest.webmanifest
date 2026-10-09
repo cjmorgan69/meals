@@ -1,0 +1,13 @@
+{
+  "name": "Recipe Planner",
+  "short_name": "Recipes",
+  "description": "Keep your recipes, plan the week's dinners and get a shopping list.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f1",
+  "theme_color": "#1f5b43",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

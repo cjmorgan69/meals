@@ -1,0 +1,11 @@
+{
+  "name": "recipe-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Recipe and meal planner web app (static front end + Supabase).",
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test tests/units.test.mjs tests/functions.test.mjs",
+    "check": "node --check js/*.js js/views/*.js"
+  }
+}
