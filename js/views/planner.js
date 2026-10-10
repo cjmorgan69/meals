@@ -172,7 +172,7 @@ export async function render(root) {
       ...listing));
   }
 
-  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), phonePrintNote(), ideas, h("div", {}, list));
+  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), ideas, h("div", {}, list));
   showIdeas();
 }
 
