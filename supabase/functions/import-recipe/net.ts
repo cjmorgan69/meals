@@ -83,3 +83,85 @@ export async function safeFetchText(
   }
   throw new Error("The link redirected too many times.");
 }
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** Resolves a possibly relative address against the page and returns it if it is a fetchable http(s) address. */
+export function resolveImageUrl(raw: string | null, pageUrl: string): string | null {
+  if (!raw) return null;
+  try {
+    return validateUrl(new URL(raw, pageUrl).toString()).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Downloads a picture, or returns null when it can't be fetched, isn't a JPEG/PNG/WebP, or is too big. Never throws. */
+export async function safeFetchImage(
+  raw: string,
+  opts: { maxBytes?: number; timeoutMs?: number; maxRedirects?: number; referer?: string } = {},
+): Promise<{ mime: string; base64: string } | null> {
+  const maxBytes = opts.maxBytes ?? 4_000_000;
+  const maxRedirects = opts.maxRedirects ?? 3;
+  try {
+    let url = validateUrl(raw);
+    for (let i = 0; i <= maxRedirects; i++) {
+      const res = await fetch(url, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
+        headers: {
+          "user-agent": "Mozilla/5.0 (compatible; RecipePlannerBot/1.0)",
+          accept: "image/webp,image/jpeg,image/png",
+          ...(opts.referer ? { referer: opts.referer } : {}),
+        },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        await res.body?.cancel();
+        if (!loc) return null;
+        url = validateUrl(new URL(loc, url).toString());
+        continue;
+      }
+      if (!res.ok) {
+        await res.body?.cancel();
+        return null;
+      }
+      const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      if (!IMAGE_TYPES.includes(mime)) {
+        await res.body?.cancel();
+        return null;
+      }
+      const declared = Number(res.headers.get("content-length") ?? 0);
+      if (declared > maxBytes) {
+        await res.body?.cancel();
+        return null;
+      }
+      const reader = res.body!.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > maxBytes) {
+          await reader.cancel();
+          return null;
+        }
+        chunks.push(value);
+      }
+      if (total < 500) return null;
+      const buf = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) {
+        buf.set(c, off);
+        off += c.length;
+      }
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      return { mime, base64: btoa(bin) };
+    }
+  } catch (e) {
+    console.error("image fetch failed:", e instanceof Error ? e.message : e);
+  }
+  return null;
+}

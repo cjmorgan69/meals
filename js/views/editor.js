@@ -47,7 +47,7 @@ export async function render(root, [id]) {
     const file = e.target.files[0]; if (!file) return;
     try { photoBlob = (await downscaleImage(file)).blob; showPhoto(URL.createObjectURL(photoBlob)); } catch (err) { toast(err.message, true); }
   } });
-  const showPhoto = (u) => mount(photoPrev, u ? h("img", { src: u, alt: "", style: "max-width:240px;border-radius:10px" }) : null);
+  const showPhoto = (u) => mount(photoPrev, u ? h("img", { src: u, alt: "", style: "max-width:240px;border-radius:10px" }) : null, u && state.draftPhotoFromWeb && photoBlob === state.draftPhoto ? h("p.hint", {}, "Photo taken from the recipe page. Choose a file to replace it.") : null);
   if (photoBlob) showPhoto(URL.createObjectURL(photoBlob)); else if (r.image_path) photoUrl(r.image_path).then(showPhoto);
 
   const err = h("p.error", { role: "alert" });
@@ -72,7 +72,7 @@ export async function render(root, [id]) {
         steps: steps.map((s) => ({ instruction: s.instruction || "", timer_seconds: s.timer_seconds ?? null })),
       };
       const rid = await saveRecipe(rec, editing);
-      state.draft = null; state.draftPhoto = null;
+      state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false;
       toast("Saved");
       location.hash = `#/recipe/${rid}`;
     });
@@ -90,7 +90,7 @@ export async function render(root, [id]) {
     h("h2", { style: "margin-top:1.4rem" }, "Method"), stepBox,
     h("button.btn.small", { type: "button", onclick: () => { steps.push({ instruction: "", timer_seconds: null }); drawSteps(); stepBox.querySelector(".ed-step:last-child textarea")?.focus(); } }, "Add step"),
     err,
-    h("div.row.end", { style: "margin-top:1.2rem" }, h("a.btn", { href: editing ? `#/recipe/${editing}` : "#/recipes", onclick: () => { if (!editing) { state.draft = null; state.draftPhoto = null; } } }, "Cancel"), save));
+    h("div.row.end", { style: "margin-top:1.2rem" }, h("a.btn", { href: editing ? `#/recipe/${editing}` : "#/recipes", onclick: () => { if (!editing) { state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false; } } }, "Cancel"), save));
 
   mount(root, h("h1", {}, editing ? "Edit recipe" : fromDraft ? "Check the imported recipe" : "New recipe"),
     fromDraft ? h("p.hint", {}, "Imported recipes can contain mistakes. Check the quantities before you save.") : null,

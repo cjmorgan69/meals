@@ -48,3 +48,16 @@ export function extractJsonLd(html: string): unknown[] {
   }
   return out;
 }
+
+/** The page's share image (og:image / twitter:image), as written in the page (may be relative). */
+export function extractMetaImage(html: string): string | null {
+  const head = html.slice(0, 200_000);
+  for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = m[0];
+    const key = tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    if (key !== "og:image" && key !== "og:image:url" && key !== "og:image:secure_url" && key !== "twitter:image") continue;
+    const content = tag.match(/\bcontent\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (content) return decodeEntities(content.trim());
+  }
+  return null;
+}

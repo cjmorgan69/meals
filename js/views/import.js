@@ -9,8 +9,18 @@ export function render(root) {
   const tabs = h("div.tabs", { role: "tablist" });
   const TABS = [["url", "Web link"], ["photo", "Photo"], ["text", "Pasted text"]];
 
-  function finish(res, photo) {
-    state.draft = res.recipe; state.draftPhoto = photo || null;
+  // A web link import may bring the page's own photo back as base64; shrink it like any other photo.
+  async function pagePhoto(img) {
+    if (!img?.base64) return null;
+    try {
+      const bytes = Uint8Array.from(atob(img.base64), (c) => c.charCodeAt(0));
+      return (await downscaleImage(new Blob([bytes], { type: img.mime }))).blob;
+    } catch { return null; }
+  }
+  async function finish(res, photo) {
+    state.draft = res.recipe;
+    state.draftPhoto = photo || (await pagePhoto(res.image));
+    state.draftPhotoFromWeb = !photo && !!state.draftPhoto;
     location.hash = "#/edit/new";
   }
   function fail(e, box) {
@@ -20,8 +30,8 @@ export function render(root) {
     url() {
       const url = h("input", { type: "url", id: "u", placeholder: "https://…", required: true });
       const err = h("p.error", { role: "alert" }), go = h("button.btn.primary", { type: "submit" }, "Import");
-      return h("form", { onsubmit: (e) => { e.preventDefault(); err.textContent = ""; busy(go, async () => finish(await importRecipe({ mode: "url", url: url.value.trim() })), { onError: (x) => fail(x, err) }); } },
-        h("div.field", {}, h("label", { for: "u" }, "Recipe web address"), url, h("span.hint", {}, "Most recipe sites import instantly and don't use your AI allowance.")), err, go);
+      return h("form", { onsubmit: (e) => { e.preventDefault(); err.textContent = ""; busy(go, async () => await finish(await importRecipe({ mode: "url", url: url.value.trim() })), { onError: (x) => fail(x, err) }); } },
+        h("div.field", {}, h("label", { for: "u" }, "Recipe web address"), url, h("span.hint", {}, "Most recipe sites import instantly and don't use your AI allowance. The page's photo comes with it when the site allows.")), err, go);
     },
     photo() {
       const file = h("input", { type: "file", accept: "image/*", id: "ph", required: true });

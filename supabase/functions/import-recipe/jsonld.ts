@@ -133,3 +133,23 @@ export function recipeFromJsonLd(node: Obj, sourceUrl: string | null): DraftReci
     source_url: sourceUrl,
   };
 }
+
+/** First image address in a schema.org image field (string, ImageObject, or a list of either). */
+export function imageFromJsonLd(node: Obj): string | null {
+  const walk = (v: unknown): string | null => {
+    if (typeof v === "string") return v.trim() || null;
+    if (Array.isArray(v)) {
+      for (const x of v) {
+        const r = walk(x);
+        if (r) return r;
+      }
+      return null;
+    }
+    if (v && typeof v === "object") {
+      const o = v as Obj;
+      return walk(o.url ?? o.contentUrl);
+    }
+    return null;
+  };
+  return walk(node.image);
+}

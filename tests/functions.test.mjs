@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseIngredientLine, guessCategory, normaliseName, parseLeadingQuantity } from "../supabase/functions/import-recipe/ingredients.ts";
-import { parseDuration, parseYield, guessTimer, recipeFromJsonLd, findRecipeNode, instructionsToSteps } from "../supabase/functions/import-recipe/jsonld.ts";
-import { htmlToText, extractJsonLd, decodeEntities } from "../supabase/functions/import-recipe/html.ts";
-import { isBlockedHost, validateUrl } from "../supabase/functions/import-recipe/net.ts";
+import { parseDuration, parseYield, guessTimer, recipeFromJsonLd, findRecipeNode, instructionsToSteps, imageFromJsonLd } from "../supabase/functions/import-recipe/jsonld.ts";
+import { htmlToText, extractJsonLd, decodeEntities, extractMetaImage } from "../supabase/functions/import-recipe/html.ts";
+import { isBlockedHost, validateUrl, resolveImageUrl, safeFetchImage } from "../supabase/functions/import-recipe/net.ts";
 import { normaliseAiRecipe, parseJsonLoose, buildPrompt, RECIPE_SCHEMA } from "../supabase/functions/import-recipe/ai.ts";
 
 const p = parseIngredientLine;
@@ -203,4 +203,47 @@ test("prompt and schema shape", () => {
   assert.ok(prompt.includes("<recipe_input>"));
   assert.ok(buildPrompt("photo").includes("attached image"));
   assert.deepEqual(RECIPE_SCHEMA.required, ["is_recipe", "title", "ingredients", "steps"]);
+});
+
+test("recipe photo: found in recipe data or the share image tag", () => {
+  assert.equal(imageFromJsonLd({ image: "https://x.com/a.jpg" }), "https://x.com/a.jpg");
+  assert.equal(imageFromJsonLd({ image: { "@type": "ImageObject", url: "https://x.com/b.jpg" } }), "https://x.com/b.jpg");
+  assert.equal(imageFromJsonLd({ image: [{ url: "https://x.com/c.jpg" }, "https://x.com/d.jpg"] }), "https://x.com/c.jpg");
+  assert.equal(imageFromJsonLd({}), null);
+  assert.equal(extractMetaImage('<head><meta property="og:image" content="https://x.com/o.jpg?a=1&amp;b=2"></head>'), "https://x.com/o.jpg?a=1&b=2");
+  assert.equal(extractMetaImage('<meta content="/rel.jpg" name="twitter:image">'), "/rel.jpg");
+  assert.equal(extractMetaImage('<meta property="og:title" content="x">'), null);
+  assert.equal(resolveImageUrl("/img/a.jpg", "https://site.com/recipes/1"), "https://site.com/img/a.jpg");
+  assert.equal(resolveImageUrl("http://localhost/a.jpg", "https://site.com/"), null);
+  assert.equal(resolveImageUrl("http://169.254.169.254/a.jpg", "https://site.com/"), null);
+  assert.equal(resolveImageUrl(null, "https://site.com/"), null);
+});
+
+test("recipe photo download: accepts real pictures, refuses everything else", async () => {
+  const real = globalThis.fetch;
+  const png = new Uint8Array(2000).fill(7);
+  const make = (body, type, extra = {}) => new Response(body, { status: 200, headers: { "content-type": type, ...extra } });
+  try {
+    globalThis.fetch = async () => make(png, "image/png");
+    const ok = await safeFetchImage("https://site.com/a.png");
+    assert.equal(ok.mime, "image/png");
+    assert.equal(Buffer.from(ok.base64, "base64").length, 2000);
+    globalThis.fetch = async () => make("<html>", "text/html");
+    assert.equal(await safeFetchImage("https://site.com/a.png"), null);
+    globalThis.fetch = async () => make(png, "image/svg+xml");
+    assert.equal(await safeFetchImage("https://site.com/a.svg"), null);
+    globalThis.fetch = async () => make(png, "image/jpeg");
+    assert.equal(await safeFetchImage("https://site.com/big.jpg", { maxBytes: 1000 }), null);
+    globalThis.fetch = async () => new Response("no", { status: 403 });
+    assert.equal(await safeFetchImage("https://site.com/a.jpg"), null);
+    let called = false;
+    globalThis.fetch = async () => { called = true; return make(png, "image/png"); };
+    assert.equal(await safeFetchImage("http://127.0.0.1/a.png"), null);
+    assert.equal(called, false);
+    // a redirect to a private address is refused
+    globalThis.fetch = async () => new Response(null, { status: 302, headers: { location: "http://10.0.0.5/x.png" } });
+    assert.equal(await safeFetchImage("https://site.com/r.png"), null);
+  } finally {
+    globalThis.fetch = real;
+  }
 });
