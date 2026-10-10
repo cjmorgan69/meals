@@ -1,5 +1,5 @@
 import { h, mount, busy, toast } from "../ui.js";
-import { getRecipe, saveRecipe, uploadPhoto, photoUrl } from "../api.js";
+import { getRecipe, saveRecipe, uploadPhoto, photoUrl, deletePhoto } from "../api.js";
 import { state } from "../state.js";
 import { UNITS, formatNumber, parseQuantity } from "../units.js";
 import { downscaleImage } from "../image.js";
@@ -15,10 +15,14 @@ export async function render(root, [id]) {
   else r = blank();
   const fromDraft = !editing && !!state.draft;
   let photoBlob = !editing ? state.draftPhoto : null;
+  let removePhoto = false;
+  // Textareas grow with their text so the phone never scrolls inside a box while you type.
+  const grow = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; };
+  const autogrow = (t) => { t.classList.add("autogrow"); t.addEventListener("input", () => grow(t)); requestAnimationFrame(() => grow(t)); return t; };
 
   const f = {
     title: h("input", { type: "text", id: "t", required: true, value: r.title }),
-    desc: h("textarea", { id: "d" }, r.description || ""),
+    desc: autogrow(h("textarea", { id: "d" }, r.description || "")),
     serves: h("input", { type: "number", id: "s", min: 1, value: r.servings }),
     prep: h("input", { type: "number", id: "p", min: 0, value: r.prep_minutes ?? "" }),
     cook: h("input", { type: "number", id: "c", min: 0, value: r.cook_minutes ?? "" }),
@@ -42,7 +46,7 @@ export async function render(root, [id]) {
   }
   const drawIngs = () => mount(ingBox, ings.map(ingRow));
   function stepRow(s, n) {
-    const t = h("textarea", { "aria-label": `Step ${n + 1}`, oninput: (e) => { s.instruction = e.target.value; } }, s.instruction || "");
+    const t = autogrow(h("textarea", { "aria-label": `Step ${n + 1}`, oninput: (e) => { s.instruction = e.target.value; } }, s.instruction || ""));
     const del = h("button.btn.small.ghost", { type: "button", "aria-label": "Remove step", onclick: () => { steps.splice(n, 1); drawSteps(); } }, "✕");
     return h("div.ed-step", {}, t, del);
   }
@@ -51,9 +55,11 @@ export async function render(root, [id]) {
 
   const photoPrev = h("div"), photoIn = h("input", { type: "file", accept: "image/*", "aria-label": "Photo", onchange: async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    try { photoBlob = (await downscaleImage(file)).blob; showPhoto(URL.createObjectURL(photoBlob)); } catch (err) { toast(err.message, true); }
+    try { photoBlob = (await downscaleImage(file)).blob; removePhoto = false; showPhoto(URL.createObjectURL(photoBlob)); } catch (err) { toast(err.message, true); }
   } });
-  const showPhoto = (u) => mount(photoPrev, u ? h("img", { src: u, alt: "", style: "max-width:240px;border-radius:10px" }) : null, u && state.draftPhotoFromWeb && photoBlob === state.draftPhoto ? h("p.hint", {}, "Photo taken from the recipe page. Choose a file to replace it.") : null);
+  const dropPhoto = () => { photoBlob = null; removePhoto = true; photoIn.value = ""; showPhoto(null); };
+  const showPhoto = (u) => mount(photoPrev, u ? h("img", { src: u, alt: "", style: "max-width:240px;border-radius:10px;display:block" }) : null,
+    u ? h("button.btn.small", { type: "button", style: "margin-top:.4rem", onclick: dropPhoto }, "Remove photo") : null, u && state.draftPhotoFromWeb && photoBlob === state.draftPhoto ? h("p.hint", {}, "Photo taken from the recipe page. Choose a file to replace it.") : null);
   if (photoBlob) showPhoto(URL.createObjectURL(photoBlob)); else if (r.image_path) photoUrl(r.image_path).then(showPhoto);
 
   const err = h("p.error", { role: "alert" });
@@ -72,7 +78,7 @@ export async function render(root, [id]) {
     const vid = f.video.value.trim();
     if (vid && !/^https?:\/\//i.test(vid)) { err.textContent = "The video link should start with https://"; return; }
     busy(save, async () => {
-      let image_path = r.image_path || null;
+      let image_path = removePhoto ? null : r.image_path || null;
       if (photoBlob && (!editing || photoBlob !== state.draftPhoto)) { try { image_path = await uploadPhoto(photoBlob); } catch (x) { toast("Saved without the photo: " + x.message, true); } }
       const rec = {
         title: f.title.value, description: f.desc.value.trim(), servings: Math.max(1, Number(f.serves.value) || 4),
@@ -83,6 +89,7 @@ export async function render(root, [id]) {
         steps: steps.map((s) => ({ instruction: s.instruction || "", timer_seconds: s.timer_seconds ?? null })),
       };
       const rid = await saveRecipe(rec, editing);
+      if (removePhoto && r.image_path && !photoBlob) { try { await deletePhoto(r.image_path); } catch { /* the file is just left behind */ } }
       state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false;
       toast("Saved");
       location.hash = `#/recipe/${rid}`;

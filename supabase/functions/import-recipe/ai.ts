@@ -73,7 +73,7 @@ Rules:
 
 export function buildPrompt(mode: "photo" | "text" | "url", content?: string, sourceUrl?: string): string {
   if (mode === "photo") {
-    return `${RULES}\n\nThe attached image is a photo or screenshot of a recipe (a card, a book page or a screen). Read all of it and extract the recipe.`;
+    return `${RULES}\n\nThe attached image or images show a recipe (a card, book pages or a screen). If there are several images they are consecutive pages of the same one recipe, in order. Read all of them and extract the one recipe.`;
   }
   const label = mode === "url" ? `The text below was taken from the web page ${sourceUrl ?? ""}.` : "The text below was pasted or typed by the user.";
   return `${RULES}\n\n${label}\n\n<recipe_input>\n${content ?? ""}\n</recipe_input>`;
@@ -89,11 +89,11 @@ export async function callGemini(o: {
   apiKey: string;
   model: string;
   prompt: string;
-  image?: { mime: string; data: string };
+  images?: { mime: string; data: string }[];
   schema?: unknown;
 }): Promise<GeminiResult> {
   const parts: unknown[] = [{ text: o.prompt }];
-  if (o.image) parts.push({ inline_data: { mime_type: o.image.mime, data: o.image.data } });
+  for (const im of o.images ?? []) parts.push({ inline_data: { mime_type: im.mime, data: im.data } });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(o.model)}:generateContent`;
   const post = (withSchema: boolean) =>

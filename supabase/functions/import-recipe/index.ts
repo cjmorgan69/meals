@@ -69,7 +69,7 @@ async function handle(req: Request): Promise<Response> {
   // Inputs per mode ------------------------------------------------------
   let sourceUrl: string | null = null;
   let content = "";
-  let image: { mime: string; data: string } | undefined;
+  let images: { mime: string; data: string }[] = [];
   let pageVideo: string | null = null; // a YouTube/Vimeo link found on the page (web links only)
   let pagePhoto: { mime: string; base64: string } | null = null; // the recipe page's own photo (web links only)
 
@@ -105,12 +105,17 @@ async function handle(req: Request): Promise<Response> {
     if (content.length > 20_000) return fail(400, "bad_request", "That text is too long (20,000 characters at most).");
   } else {
     // "photo" (a recipe) and "ingredients" (what's in the fridge) both take a picture
-    const mime = typeof body.mime === "string" ? body.mime : "";
-    const data = typeof body.image_base64 === "string" ? body.image_base64 : "";
-    if (!IMAGE_MIMES.includes(mime) || data.length < 100 || !/^[A-Za-z0-9+/=\s]+$/.test(data)) {
-      return fail(400, "bad_request", "Send a JPEG, PNG or WebP photo.");
+    // One photo (image_base64) or up to four pages of the same recipe (images).
+    const list = Array.isArray(body.images) ? body.images.slice(0, 4) : [{ mime: body.mime, base64: body.image_base64 }];
+    for (const it of list) {
+      const mime = typeof it?.mime === "string" ? it.mime : "";
+      const data = typeof it?.base64 === "string" ? it.base64 : "";
+      if (!IMAGE_MIMES.includes(mime) || data.length < 100 || !/^[A-Za-z0-9+/=\s]+$/.test(data)) {
+        return fail(400, "bad_request", "Send a JPEG, PNG or WebP photo.");
+      }
+      images.push({ mime, data });
     }
-    image = { mime, data };
+    if (!images.length) return fail(400, "bad_request", "Send a JPEG, PNG or WebP photo.");
   }
 
   // From here on we spend AI money, so the key must exist ----------------------
@@ -134,7 +139,7 @@ async function handle(req: Request): Promise<Response> {
       apiKey,
       model,
       prompt: mode === "ingredients" ? INGREDIENT_PHOTO_PROMPT : buildPrompt(mode, content, sourceUrl ?? undefined),
-      image,
+      images,
       schema: mode === "ingredients" ? INGREDIENT_LIST_SCHEMA : undefined,
     });
   } catch (e) {

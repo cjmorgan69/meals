@@ -122,3 +122,11 @@ test("use up: recipes are ranked by how many wanted ingredients they use", () =>
   assert.deepEqual(rankByUseUp(recipes, lines, ["lobster"]), []);
   assert.deepEqual(ingredientTexts({ raw_text: "2 tbsp olive oil", ingredients: { name: "olive oil" } }), ["olive oil", "olive oil"]);
 });
+
+import { categoryOf } from "../js/recipe-category.js";
+test("category comes from tags, then title", () => {
+  assert.equal(categoryOf({ tags: ["breakfast", "quick"], title: "x" }), "Breakfast");
+  assert.equal(categoryOf({ tags: [], title: "Pumpkin soup" }), "Soups");
+  assert.equal(categoryOf({ tags: ["dessert"], title: "Beef stew" }), "Desserts");
+  assert.equal(categoryOf({ tags: [], title: "Something" }), "Other");
+});

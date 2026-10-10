@@ -94,6 +94,7 @@ export async function deleteRecipe(id, imagePath) {
 }
 
 // ---------- photos ----------
+export async function deletePhoto(path) { await sb.storage.from(PHOTO_BUCKET).remove([path]); }
 export async function uploadPhoto(blob) {
   const path = `${await uid()}/${crypto.randomUUID()}.jpg`;
   const { error } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: "image/jpeg" });

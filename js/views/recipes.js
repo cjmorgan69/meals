@@ -1,18 +1,30 @@
 import { h, mount, loading } from "../ui.js";
 import { listRecipes, photoUrl } from "../api.js";
 import { quickPlan } from "../quickplan.js";
+import { categoryOf, CATEGORY_ORDER } from "../recipe-category.js";
 
 export async function render(root) {
   const recipes = await listRecipes();
-  let q = "", onlyFav = false;
-  const grid = h("div.grid");
+  let q = "", onlyFav = false, cat = "";
+  for (const r of recipes) r._cat = categoryOf(r);
+  const present = CATEGORY_ORDER.filter((c) => recipes.some((r) => r._cat === c));
+  const chips = h("div.row.chips", { role: "group", "aria-label": "Category" });
+  const grid = h("div");
   const search = h("input", { type: "search", placeholder: "Search recipes or tags", "aria-label": "Search recipes", oninput: (e) => { q = e.target.value.toLowerCase(); draw(); } });
   const fav = h("button.btn.small", { "aria-pressed": "false", onclick: () => { onlyFav = !onlyFav; fav.setAttribute("aria-pressed", String(onlyFav)); fav.classList.toggle("primary", onlyFav); draw(); } }, "★ Favourites");
 
+  function drawChips() {
+    const mk = (label, value) => h("button.btn.small" + (cat === value ? ".primary" : ""), { "aria-pressed": String(cat === value), onclick: () => { cat = value; drawChips(); draw(); } }, label);
+    mount(chips, [mk("All", ""), ...present.map((c) => mk(c, c))]);
+  }
   function draw() {
-    const shown = recipes.filter((r) => (!onlyFav || r.is_favourite) && (!q || `${r.title} ${r.tags.join(" ")}`.toLowerCase().includes(q)));
-    mount(grid, shown.map(tile));
-    if (!shown.length && recipes.length) mount(grid, h("p.empty", {}, "No recipes match."));
+    const shown = recipes.filter((r) => (!onlyFav || r.is_favourite) && (!cat || r._cat === cat) && (!q || `${r.title} ${r.tags.join(" ")}`.toLowerCase().includes(q)));
+    if (!shown.length) return mount(grid, recipes.length ? h("p.empty", {}, "No recipes match.") : null);
+    if (cat || q) return mount(grid, shown.map(tile));
+    // All recipes: one headed group per category
+    mount(grid, present.filter((c) => shown.some((r) => r._cat === c)).map((c) =>
+      h("section.cat-group", {}, h("h2.cat-title", {}, c, " ", h("span.hint", {}, String(shown.filter((r) => r._cat === c).length))),
+        h("div.grid", {}, shown.filter((r) => r._cat === c).map(tile)))));
   }
   function tile(r) {
     const pic = h("div.pic", {}, "🍲");
@@ -31,9 +43,10 @@ export async function render(root) {
       h("div.row", {}, h("a.btn.primary", { href: "#/import" }, "Import a recipe"), h("a.btn", { href: "#/edit/new" }, "Write one")),
       recipes.length ? h("a.btn", { href: "#/book" }, "Make a book") : null),
     recipes.length ? h("div.row.search-row", {}, h("div.grow", {}, search), fav) : null,
+    recipes.length && present.length > 1 ? chips : null,
     recipes.length ? h("div", { style: "margin-top:1rem" }, grid) : h("div.empty", {},
       h("h2", {}, "Add your first recipe"),
       h("p", {}, "Import one from a web link, a photo of a cookbook page, or pasted text. Or type it in yourself."),
       h("a.btn.primary", { href: "#/import" }, "Import a recipe")));
-  if (recipes.length) draw();
+  if (recipes.length) { drawChips(); draw(); }
 }
