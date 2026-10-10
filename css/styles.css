@@ -116,3 +116,32 @@ textarea{min-height:90px;resize:vertical}
 .auth{max-width:380px;margin:8vh auto;padding:0 1rem}
 .meter{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
 .meter>i{display:block;height:100%;background:var(--brand)}
+
+/* print: recipe books and single recipes */
+#print-root{display:none}
+@media print{
+  body.printing{background:#fff;color:#000;font-size:11pt;padding:0}
+  body.printing #app,body.printing #toasts{display:none!important}
+  body.printing #print-root{display:block;font-family:Georgia,"Times New Roman",serif;line-height:1.45}
+  #print-root h1,#print-root h2,#print-root h3{font-family:"Bricolage Grotesque",system-ui,sans-serif;color:#1f5b43}
+  .bk-cover{height:230mm;display:flex;flex-direction:column;justify-content:center;page-break-after:always}
+  .bk-cover h1{font-size:34pt;margin:0 0 .3em}
+  .bk-toc{page-break-after:always}
+  .bk-toc li{padding:.15em 0}
+  .bk-recipe{page-break-after:always;break-inside:auto}
+  .bk-recipe:last-child{page-break-after:auto}
+  .bk-recipe h2{font-size:22pt;margin:0 0 .2em}
+  .bk-desc{font-style:italic;margin:.2em 0}
+  .bk-meta{color:#444;margin:.3em 0 .8em}
+  .bk-photo{width:100%;max-height:75mm;object-fit:cover;border-radius:4px;margin-bottom:.8em}
+  .bk-cols{display:grid;grid-template-columns:36% 1fr;gap:8mm}
+  .bk-cols h3{font-size:13pt;margin:0 0 .4em}
+  .bk-ings ul{list-style:none;padding:0;margin:0}
+  .bk-ings li{padding:.2em 0;border-bottom:.5pt solid #ccc;break-inside:avoid}
+  .bk-ings li.pg{font-weight:700;border:0;padding-top:.7em}
+  .bk-steps ol{padding-left:1.2em;margin:0}
+  .bk-steps li{padding:.25em 0;break-inside:avoid}
+  .bk-src{font-size:8.5pt;color:#555;margin-top:1em;word-break:break-all}
+}
+.book-pick label{display:flex;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)}
+.book-pick input[type=checkbox]{width:1.2rem;height:1.2rem;accent-color:var(--brand)}

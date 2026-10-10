@@ -8,6 +8,7 @@ const ROUTES = {
   recipe: () => import("./views/recipe.js"),
   edit: () => import("./views/editor.js"),
   import: () => import("./views/import.js"),
+  book: () => import("./views/book.js"),
   plan: () => import("./views/planner.js"),
   shopping: () => import("./views/shopping.js"),
   settings: () => import("./views/settings.js"),
@@ -30,7 +31,7 @@ async function route() {
   if (!shell || !root.contains(shell)) buildShell();
   const [path = "recipes", ...rest] = (location.hash.replace(/^#\/?/, "") || "recipes").split("/");
   const name = ROUTES[path] ? path : "recipes";
-  const section = { recipe: "recipes", edit: "recipes", import: "recipes" }[name] || name;
+  const section = { recipe: "recipes", edit: "recipes", import: "recipes", book: "recipes" }[name] || name;
   for (const [k, a] of Object.entries(navLinks)) (k === section ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   mount(outlet, loading());
   try {

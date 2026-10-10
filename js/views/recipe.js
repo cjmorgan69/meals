@@ -2,6 +2,7 @@ import { h, mount, toast, busy, confirmBox, modal } from "../ui.js";
 import { getRecipe, photoUrl, setFavourite, deleteRecipe, logCooked, addPlan } from "../api.js";
 import { formatQuantity, formatNumber, fmtDuration } from "../units.js";
 import { iso } from "../dates.js";
+import { printRecipes } from "../print.js";
 
 export async function render(root, [id]) {
   const r = await getRecipe(id);
@@ -55,6 +56,7 @@ export async function render(root, [id]) {
       h("div.row", { style: "margin-top:.8rem" }, fav,
         h("button.btn.small", { onclick: () => planModal(r) }, "Add to plan"),
         h("button.btn.small", { onclick: () => cookedModal(r) }, "I cooked this"),
+        h("button.btn.small", { onclick: (e) => busy(e.currentTarget, () => printRecipes([r], { title: r.title, cover: false })) }, "Print / PDF"),
         h("a.btn.small", { href: `#/edit/${r.id}` }, "Edit"),
         h("button.btn.small.danger", { onclick: async () => { if (await confirmBox("Delete this recipe?", `“${r.title}” will be removed from your recipes and any meal plans.`)) { await deleteRecipe(r.id, r.image_path); toast("Deleted"); location.hash = "#/recipes"; } } }, "Delete"))),
       pic),

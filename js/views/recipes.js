@@ -24,7 +24,7 @@ export async function render(root) {
 
   mount(root,
     h("div.row.spread", {}, h("h1", {}, "Recipes"),
-      h("div.row", {}, h("a.btn", { href: "#/edit/new" }, "Write one"), h("a.btn.primary", { href: "#/import" }, "Import a recipe"))),
+      h("div.row", {}, recipes.length ? h("a.btn", { href: "#/book" }, "Make a book") : null, h("a.btn", { href: "#/edit/new" }, "Write one"), h("a.btn.primary", { href: "#/import" }, "Import a recipe"))),
     recipes.length ? h("div.row", {}, h("div.grow", {}, search), fav) : null,
     recipes.length ? h("div", { style: "margin-top:1rem" }, grid) : h("div.empty", {},
       h("h2", {}, "Add your first recipe"),
