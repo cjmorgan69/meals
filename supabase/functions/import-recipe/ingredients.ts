@@ -172,6 +172,10 @@ export function parseIngredientLine(raw: string, group: string | null = null): D
           if (UNIT_ALIASES[t]) {
             unit = UNIT_ALIASES[t];
             rest = tok[2];
+            // "400g can chopped tomatoes": the amount is 400 g, the pack word is not part of the name
+            if (unit === "g" || unit === "kg" || unit === "ml" || unit === "l") {
+              rest = rest.replace(/^(?:tins?|cans?|packets?|packs?|jars?|bottles?|tubs?)\b\.?\s*(?:of\s+)?/i, "");
+            }
           } else if (IMPERIAL[t]) {
             quantity = roundNice(quantity * IMPERIAL[t].factor);
             unit = IMPERIAL[t].unit;

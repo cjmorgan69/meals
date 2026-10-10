@@ -270,3 +270,12 @@ test("recipe video: YouTube and Vimeo links are found and tidied", () => {
   assert.equal(videoFromHtml(`<meta property="og:video" content="https://www.youtube.com/embed/${id}">`), want);
   assert.equal(videoFromHtml(`<a href="https://www.youtube.com/watch?v=${id}">Subscribe on YouTube</a>`), null);
 });
+
+test("pack words stay out of the name when the pack size is the amount", () => {
+  const a = p("400g can chopped tomatoes");
+  assert.equal(a.quantity, 400); assert.equal(a.unit, "g"); assert.equal(a.name, "tomato");
+  const b = p("1 (400g) tin chickpeas, drained");
+  assert.equal(b.name, "chickpea");
+  const c = p("250 ml jar of passata");
+  assert.equal(c.unit, "ml"); assert.equal(c.name, "passata");
+});

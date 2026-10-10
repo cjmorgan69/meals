@@ -1,6 +1,8 @@
 import { h, mount, busy, toast, confirmBox } from "../ui.js";
 import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles } from "../api.js";
 import { categoryLabel, categoryIcon, CATEGORIES, formatQuantity } from "../units.js";
+import { fmtShop } from "../shopamount.js";
+import { cleanDisplayName } from "../ingredient-text.js";
 import { iso, addDays, parseISO, dateLabel } from "../dates.js";
 
 const getPref = () => { try { return localStorage.getItem("shopView") === "meal" ? "meal" : "aisle"; } catch { return "aisle"; } };
@@ -58,9 +60,10 @@ export async function render(root, [fromArg, toArg]) {
       try { await setChecked(i.id, v); } catch (x) { i.checked = prev; drawList(); toast(x.message, true); }
     } });
     const others = showMeals ? [] : (i.source_recipe_ids || []).map((id) => titles.get(id)).filter(Boolean);
+    const shown = cleanDisplayName(i.name); // old items may carry the amount in the name
     return h("div.shop-item" + (i.checked ? ".done" : ""), {}, cb,
-      h("label.nm", { for: cb.id }, i.name, others.length > 1 ? h("span.hint", { style: "display:block;font-size:.8rem" }, others.join(", ")) : null),
-      h("span.q", {}, formatQuantity(i.quantity, i.unit)),
+      h("label.nm", { for: cb.id }, shown, others.length > 1 ? h("span.hint", { style: "display:block;font-size:.8rem" }, others.join(", ")) : null),
+      h("span.q", {}, fmtShop(shown, i.quantity, i.unit)),
       i.is_manual ? h("button.btn.small.ghost", { "aria-label": `Remove ${i.name}`, onclick: async () => { try { await removeItem(i.id); items = items.filter((x) => x.id !== i.id); drawList(); } catch (x) { toast(x.message, true); } } }, "✕") : null);
   }
 

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { parseQuantity, formatQuantity, formatNumber } from "../js/units.js";
 import { guessCategory } from "../js/categories.js";
 import { iso, startOfWeek, addDays } from "../js/dates.js";
+import { stripQuantity, ingredientName, composeLine, cleanDisplayName } from "../js/ingredient-text.js";
+import { shopAmount, fmtShop } from "../js/shopamount.js";
 import { summariseUsage } from "../js/usage.js";
 import { scoreRecipe, suggest, regulars } from "../js/weather.js";
 
@@ -56,4 +58,30 @@ test("suggestions favour meals not planned for a long time", () => {
   assert.ok(scoreRecipe(old, "mild", today) > scoreRecipe(recent, "mild", today));
   assert.ok(scoreRecipe(never, "mild", today) > scoreRecipe(recent, "mild", today));
   assert.equal(suggest([recent, old, never], "mild", 1)[0] !== recent, true);
+});
+
+test("amounts are kept out of ingredient labels", () => {
+  assert.equal(stripQuantity("2 tbsp olive oil, divided"), "olive oil, divided");
+  assert.equal(stripQuantity("400g can chopped tomatoes"), "chopped tomatoes");
+  assert.equal(stripQuantity("2 x 400g tins chopped tomatoes"), "chopped tomatoes");
+  assert.equal(stripQuantity("1 can (400g) tomatoes"), "tomatoes");
+  assert.equal(stripQuantity("½ tsp cumin"), "cumin");
+  assert.equal(stripQuantity("ground beef"), "ground beef"); // no amount, so nothing is stripped
+  assert.equal(ingredientName("3 cloves garlic, crushed"), "garlic");
+  assert.equal(composeLine(2, "tbsp", "olive oil"), "2 tbsp olive oil");
+  assert.equal(composeLine(3, "each", "onions"), "3 onions");
+  assert.equal(composeLine(null, null, "salt, to taste"), "salt, to taste");
+  assert.equal(cleanDisplayName("2 tbsp olive oil"), "olive oil");
+  assert.equal(cleanDisplayName("can tomato"), "tomato");
+  assert.equal(cleanDisplayName("Dishwashing Liquid"), "Dishwashing Liquid");
+});
+test("dry ingredients are not shown in millilitres on the shopping list", () => {
+  assert.equal(fmtShop("plain flour", 250, "ml"), "150 g");
+  assert.equal(fmtShop("rice", 250, "ml"), "200 g");
+  assert.equal(fmtShop("ground cumin", 5, "ml"), "1 tsp");
+  assert.equal(fmtShop("salt", 30, "ml"), "1 ½ tbsp");
+  assert.equal(fmtShop("milk", 250, "ml"), "250 ml");           // liquids are untouched
+  assert.equal(fmtShop("butter beans", 250, "ml"), "250 ml");   // not butter
+  assert.equal(fmtShop("onion", 2, "each"), "2");
+  assert.deepEqual(shopAmount("flour", null, null), { quantity: null, unit: null });
 });

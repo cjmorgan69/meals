@@ -160,7 +160,9 @@ export function normaliseAiRecipe(
       ingredients.push(parseIngredientLine(rawText, str(i.group_label, 60)));
       continue;
     }
-    const name = normaliseName(nameIn) || nameIn.toLowerCase();
+    // If the model left an amount in the name ("2 tbsp olive oil"), re-read it so the name is just the ingredient.
+    const cleanIn = /^\s*[\d½¼¾⅓⅔⅛]/.test(nameIn) ? parseIngredientLine(nameIn).name : nameIn;
+    const name = normaliseName(cleanIn) || cleanIn.toLowerCase();
     const q = typeof i.quantity === "number" && Number.isFinite(i.quantity) && i.quantity >= 0 ? i.quantity : null;
     const unitRaw = str(i.unit, 20)?.toLowerCase() ?? null;
     let unit: UnitCode | null = unitRaw ? (UNIT_ALIASES[unitRaw] ?? (unitRaw === "each" ? "each" : null)) : null;
