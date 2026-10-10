@@ -52,7 +52,7 @@ export async function saveRecipe(recipe, id) {
   const row = {
     title: recipe.title.trim(), description: recipe.description || null, servings: recipe.servings || 4,
     prep_minutes: recipe.prep_minutes ?? null, cook_minutes: recipe.cook_minutes ?? null, tags: recipe.tags || [],
-    source: recipe.source || "manual", source_url: recipe.source_url || null, image_path: recipe.image_path || null,
+    source: recipe.source || "manual", source_url: recipe.source_url || null, video_url: recipe.video_url || null, image_path: recipe.image_path || null,
   };
   let rid = id;
   if (rid) must(await sb.from("recipes").update(row).eq("id", rid));

@@ -54,7 +54,7 @@ export async function render(root, [id]) {
       h("p.hint", {}, [r.prep_minutes ? `Prep ${r.prep_minutes} min` : null, r.cook_minutes ? `Cook ${r.cook_minutes} min` : null, mins ? null : null, r.times_cooked ? `Cooked ${r.times_cooked} time${r.times_cooked > 1 ? "s" : ""}` : "Not cooked yet"].filter(Boolean).join(" · ")),
       r.tags.length ? h("div.row", {}, r.tags.map((t) => h("span.chip", {}, t))) : null,
       r.source_url ? h("p.hint", {}, "From ", h("a", { href: r.source_url, rel: "noopener noreferrer", target: "_blank" }, new URL(r.source_url).hostname)) : null,
-      h("div.row", { style: "margin-top:.8rem" }, fav,
+      h("div.row", { style: "margin-top:.8rem" }, r.video_url ? h("a.btn.small.primary", { href: r.video_url, target: "_blank", rel: "noopener noreferrer" }, "▶ Watch video") : null, fav,
         h("button.btn.small", { onclick: () => quickPlan(r) }, "Add to plan"),
         h("button.btn.small", { onclick: () => cookedModal(r) }, "I cooked this"),
         h("button.btn.small", { onclick: (e) => busy(e.currentTarget, () => printRecipes([r], { title: r.title, cover: false })) }, "Print / PDF"),

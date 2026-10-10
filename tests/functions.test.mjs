@@ -4,6 +4,7 @@ import { parseIngredientLine, guessCategory, normaliseName, parseLeadingQuantity
 import { parseDuration, parseYield, guessTimer, recipeFromJsonLd, findRecipeNode, instructionsToSteps, imageFromJsonLd } from "../supabase/functions/import-recipe/jsonld.ts";
 import { htmlToText, extractJsonLd, decodeEntities, extractMetaImage } from "../supabase/functions/import-recipe/html.ts";
 import { isBlockedHost, validateUrl, resolveImageUrl, safeFetchImage } from "../supabase/functions/import-recipe/net.ts";
+import { normaliseVideoUrl, videoFromJsonLd, videoFromHtml } from "../supabase/functions/import-recipe/video.ts";
 import { normaliseAiRecipe, parseJsonLoose, buildPrompt, RECIPE_SCHEMA } from "../supabase/functions/import-recipe/ai.ts";
 
 const p = parseIngredientLine;
@@ -246,4 +247,26 @@ test("recipe photo download: accepts real pictures, refuses everything else", as
   } finally {
     globalThis.fetch = real;
   }
+});
+
+test("recipe video: YouTube and Vimeo links are found and tidied", () => {
+  const id = "dQw4w9WgXcQ";
+  const want = `https://www.youtube.com/watch?v=${id}`;
+  assert.equal(normaliseVideoUrl(`https://youtu.be/${id}?t=5`), want);
+  assert.equal(normaliseVideoUrl(`https://www.youtube.com/embed/${id}?rel=0`), want);
+  assert.equal(normaliseVideoUrl(`//www.youtube-nocookie.com/embed/${id}`), want);
+  assert.equal(normaliseVideoUrl(`https://m.youtube.com/watch?v=${id}&list=x`), want);
+  assert.equal(normaliseVideoUrl(`https://www.youtube.com/shorts/${id}`), want);
+  assert.equal(normaliseVideoUrl("https://player.vimeo.com/video/123456"), "https://vimeo.com/123456");
+  assert.equal(normaliseVideoUrl("https://www.youtube.com/@somechannel"), null);
+  assert.equal(normaliseVideoUrl("https://www.youtube.com/embed/videoseries?list=PL1"), null);
+  assert.equal(normaliseVideoUrl("https://example.com/v.mp4"), null);
+  assert.equal(normaliseVideoUrl("javascript:alert(1)"), null);
+  assert.equal(videoFromJsonLd({ video: { "@type": "VideoObject", embedUrl: `https://www.youtube.com/embed/${id}` } }), want);
+  assert.equal(videoFromJsonLd({ video: [{ contentUrl: "https://cdn.x.com/a.mp4" }, { url: `https://youtu.be/${id}` }] }), want);
+  assert.equal(videoFromJsonLd({}), null);
+  assert.equal(videoFromHtml(`<p><iframe width="560" src="https://www.youtube.com/embed/${id}?feature=oembed" allowfullscreen></iframe>`), want);
+  assert.equal(videoFromHtml(`<iframe data-src="https://www.youtube.com/embed/${id}"></iframe>`), want);
+  assert.equal(videoFromHtml(`<meta property="og:video" content="https://www.youtube.com/embed/${id}">`), want);
+  assert.equal(videoFromHtml(`<a href="https://www.youtube.com/watch?v=${id}">Subscribe on YouTube</a>`), null);
 });

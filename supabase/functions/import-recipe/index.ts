@@ -11,6 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildPrompt, callGemini, normaliseAiRecipe, parseJsonLoose } from "./ai.ts";
 import { extractJsonLd, extractMetaImage, htmlToText } from "./html.ts";
 import { findRecipeNode, imageFromJsonLd, recipeFromJsonLd } from "./jsonld.ts";
+import { videoFromHtml, videoFromJsonLd } from "./video.ts";
 import { resolveImageUrl, safeFetchImage, safeFetchText, validateUrl } from "./net.ts";
 
 const CORS = {
@@ -69,6 +70,7 @@ async function handle(req: Request): Promise<Response> {
   let sourceUrl: string | null = null;
   let content = "";
   let image: { mime: string; data: string } | undefined;
+  let pageVideo: string | null = null; // a YouTube/Vimeo link found on the page (web links only)
   let pagePhoto: { mime: string; base64: string } | null = null; // the recipe page's own photo (web links only)
 
   if (mode === "url") {
@@ -91,7 +93,8 @@ async function handle(req: Request): Promise<Response> {
     // The page's photo: the recipe data's image, else the share image. Best effort; never blocks the import.
     const photoUrl = resolveImageUrl((node ? imageFromJsonLd(node) : null) ?? extractMetaImage(page.text), page.url);
     if (photoUrl) pagePhoto = await safeFetchImage(photoUrl, { referer: page.url });
-    if (fromJsonLd) return reply(200, { recipe: fromJsonLd, via: "json-ld", image: pagePhoto });
+    pageVideo = (node ? videoFromJsonLd(node) : null) ?? videoFromHtml(page.text);
+    if (fromJsonLd) return reply(200, { recipe: { ...fromJsonLd, video_url: pageVideo }, via: "json-ld", image: pagePhoto });
     content = htmlToText(page.text);
     if (content.length < 200) {
       return fail(422, "no_recipe", "That page doesn't have readable recipe text. Try pasting the recipe text instead.");
@@ -153,5 +156,5 @@ async function handle(req: Request): Promise<Response> {
     console.error("could not parse model output:", e instanceof Error ? e.message : e);
   }
   if (!recipe) return fail(422, "no_recipe", "No recipe found. Try a clearer photo, or paste the recipe text.");
-  return reply(200, { recipe, via: "ai", image: pagePhoto });
+  return reply(200, { recipe: { ...recipe, video_url: pageVideo }, via: "ai", image: pagePhoto });
 }

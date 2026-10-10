@@ -21,6 +21,7 @@ export async function render(root, [id]) {
     serves: h("input", { type: "number", id: "s", min: 1, value: r.servings }),
     prep: h("input", { type: "number", id: "p", min: 0, value: r.prep_minutes ?? "" }),
     cook: h("input", { type: "number", id: "c", min: 0, value: r.cook_minutes ?? "" }),
+    video: h("input", { type: "url", id: "v", value: r.video_url || "", placeholder: "https://www.youtube.com/watch?v=…" }),
     tags: h("input", { type: "text", id: "g", value: (r.tags || []).join(", "), placeholder: "vegetarian, quick" }),
   };
   const ingBox = h("div"), stepBox = h("div");
@@ -60,6 +61,8 @@ export async function render(root, [id]) {
       if (Number.isNaN(q)) { err.textContent = `“${i.qtyText}” isn't a quantity. Use a number like 2, 1/2 or 1.5.`; return; }
       i.quantity = q;
     }
+    const vid = f.video.value.trim();
+    if (vid && !/^https?:\/\//i.test(vid)) { err.textContent = "The video link should start with https://"; return; }
     busy(save, async () => {
       let image_path = r.image_path || null;
       if (photoBlob && (!editing || photoBlob !== state.draftPhoto)) { try { image_path = await uploadPhoto(photoBlob); } catch (x) { toast("Saved without the photo: " + x.message, true); } }
@@ -67,7 +70,7 @@ export async function render(root, [id]) {
         title: f.title.value, description: f.desc.value.trim(), servings: Math.max(1, Number(f.serves.value) || 4),
         prep_minutes: f.prep.value === "" ? null : Number(f.prep.value), cook_minutes: f.cook.value === "" ? null : Number(f.cook.value),
         tags: f.tags.value.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean),
-        source: r.source || "manual", source_url: r.source_url || null, image_path,
+        source: r.source || "manual", source_url: r.source_url || null, video_url: vid || null, image_path,
         ingredients: ings.map((i) => ({ raw_text: i.raw_text, name: i.name || guessName(i.raw_text), quantity: i.quantity, unit: i.unit, note: i.note, optional: i.optional, group_label: i.group_label })),
         steps: steps.map((s) => ({ instruction: s.instruction || "", timer_seconds: s.timer_seconds ?? null })),
       };
@@ -83,6 +86,7 @@ export async function render(root, [id]) {
       h("div.field", {}, h("label", { for: "s" }, "Serves"), f.serves),
       h("div.field", {}, h("label", { for: "p" }, "Prep (min)"), f.prep),
       h("div.field", {}, h("label", { for: "c" }, "Cook (min)"), f.cook)),
+    h("div.field", {}, h("label", { for: "v" }, "Video link"), f.video, h("span.hint", {}, "Optional. A YouTube or Vimeo link.")),
     h("div.field", {}, h("label", { for: "g" }, "Tags"), f.tags, h("span.hint", {}, "Separate with commas.")),
     h("div.field", {}, h("label", {}, "Photo"), photoIn, photoPrev),
     h("h2", {}, "Ingredients"), ingBox,

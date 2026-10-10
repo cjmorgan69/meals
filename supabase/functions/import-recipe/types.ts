@@ -40,4 +40,5 @@ export interface DraftRecipe {
   steps: DraftStep[];
   source: "photo" | "url" | "text";
   source_url: string | null;
+  video_url?: string | null;
 }

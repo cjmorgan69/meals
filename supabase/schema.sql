@@ -108,6 +108,7 @@ create table public.recipes (
   source       recipe_source not null default 'manual',
   source_url   text,
   image_path   text,                       -- path inside the recipe-photos bucket
+  video_url    text,                       -- link to a YouTube/Vimeo video, if any
   servings     int not null default 4 check (servings > 0),
   prep_minutes int check (prep_minutes >= 0),
   cook_minutes int check (cook_minutes >= 0),
