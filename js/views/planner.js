@@ -7,6 +7,7 @@ import { forecastFor, getPosition, classifyWeather, weatherText, suggest, regula
 const midnight = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
 let weekStart = midnight(); // the plan shows 7 days from here, starting today
 let forecast = null;
+let ideasOpen = false, ideaTab = "fresh"; // the dinner ideas panel stays open while you plan from it
 
 export async function render(root) {
   if (weekStart < midnight()) weekStart = midnight(); // the app was left open past midnight: never show past days
@@ -91,34 +92,40 @@ export async function render(root) {
       iso(weekStart) !== today ? h("button.btn.small", { onclick: () => { weekStart = midnight(); forecast = null; redraw(); } }, "Today") : null));
 
   const ideas = h("div");
-  const wxBtn = h("button.btn.small", { onclick: () => busy(wxBtn, async () => {
-    const pos = await getPosition();
-    forecast = await forecastFor(pos.lat, pos.lon);
-    redraw();
-  }) }, forecast ? "Refresh weather" : "Use the weather");
-  const ideaBtn = h("button.btn.small", { onclick: () => showIdeas(ideas.firstChild ? null : "fresh") }, "Suggest dinners");
-  let ideaTab = "fresh";
-  function showIdeas(tab) {
-    if (tab === null) { mount(ideas); return; } // tapping again closes the panel
-    if (tab) ideaTab = tab;
+  const ideaBtn = h("button.btn.small", { onclick: () => { ideasOpen = !ideasOpen; showIdeas(); } }, "Suggest dinners");
+  function showIdeas() {
+    if (!ideasOpen) { mount(ideas); return; }
     const planned = new Set(plan.map((p) => p.recipe_id));
     const w = forecast?.find((d) => d.date >= today) || null;
     const kind = w ? classifyWeather(w) : "mild";
     const picks = ideaTab === "fresh" ? suggest(recipes, kind, 4, planned) : regulars(recipes, 5, planned);
     const when = (r) => r.last_planned_on ? `last planned ${dateLabel(parseISO(r.last_planned_on))}` : "not planned yet";
+    // Plan onto the first day that has no dinner yet (or the first day if every day has one).
+    const free = days.find((d) => !plan.some((p) => p.planned_date === iso(d) && p.meal === "dinner")) || days[0];
+    const dayPick = h("select", { id: "ideaDay", "aria-label": "Plan it for" }, days.map((d) => h("option", { value: iso(d), selected: iso(d) === iso(free) }, `${dayLabel(d)} ${dateLabel(d)}`)));
+    const wxBtn = h("button.btn.small", { onclick: () => busy(wxBtn, async () => {
+      const pos = await getPosition();
+      forecast = await forecastFor(pos.lat, pos.lon);
+      redraw();
+    }, { onError: (x) => toast(x.message || "Couldn't get the weather", true) }) }, forecast ? "Refresh weather" : "Use the weather");
     mount(ideas, h("div.card", {},
-      h("div.tabs", { role: "tablist", style: "margin:0 0 .6rem;border:0" },
-        h("button", { role: "tab", "aria-selected": String(ideaTab === "fresh"), onclick: () => showIdeas("fresh") }, "Not planned lately"),
-        h("button", { role: "tab", "aria-selected": String(ideaTab === "regulars"), onclick: () => showIdeas("regulars") }, "Your regulars")),
+      h("div.row.spread", {}, h("h2", { style: "margin:0" }, "Dinner ideas"),
+        h("button.btn.small.ghost", { "aria-label": "Close dinner ideas", onclick: () => { ideasOpen = false; showIdeas(); } }, "Close")),
+      h("div.tabs", { role: "tablist", style: "margin:.6rem 0;border:0" },
+        h("button", { role: "tab", "aria-selected": String(ideaTab === "fresh"), onclick: () => { ideaTab = "fresh"; showIdeas(); } }, "Not planned lately"),
+        h("button", { role: "tab", "aria-selected": String(ideaTab === "regulars"), onclick: () => { ideaTab = "regulars"; showIdeas(); } }, "Your regulars")),
       h("p.hint", {}, ideaTab === "fresh"
-        ? (w ? `Meals you haven't planned for a while, leaning towards ${kind === "hot" ? "a hot" : kind === "cold" ? "a cool or wet" : "a mild"} day.` : "Meals you haven't planned for a while. Tap “Use the weather” to lean towards the forecast.")
+        ? (w ? `Meals you haven't planned for a while, leaning towards ${kind === "hot" ? "a hot" : kind === "cold" ? "a cool or wet" : "a mild"} day.` : "Meals you haven't planned for a while.")
         : "The meals you plan most often."),
-      picks.length ? picks.map((r) => h("div.plan-item", {}, h("a.grow", { href: `#/recipe/${r.id}` }, r.title, h("span.hint", { style: "display:block;font-size:.8rem" }, ideaTab === "regulars" ? `planned ${r.times_planned}×, ${when(r)}` : when(r))),
-        h("button.btn.small", { onclick: async () => { await addPlan(r.id, w?.date || today); redraw(); } }, "Plan it")))
+      ideaTab === "fresh" ? h("div.row", { style: "margin-bottom:.6rem" }, wxBtn) : null,
+      h("div.row", { style: "margin-bottom:.4rem;align-items:center" }, h("label", { for: "ideaDay" }, "Plan it for"), dayPick),
+      picks.length ? picks.map((r) => h("div.plan-item", {}, h("div.grow", {}, h("a", { href: `#/recipe/${r.id}` }, r.title), h("span.hint", { style: "display:block;font-size:.8rem" }, ideaTab === "regulars" ? `planned ${r.times_planned}×, ${when(r)}` : when(r))),
+        h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { await addPlan(r.id, dayPick.value); toast(`Planned for ${dateLabel(parseISO(dayPick.value))}`); redraw(); }) }, "Plan it")))
         : h("p.hint", {}, ideaTab === "fresh" ? "Nothing new to suggest yet. Add more recipes." : "Nothing here yet. Meals you plan twice or more will show up here.")));
   }
 
-  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list for these days"), h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), ideas, h("div", {}, list));
+  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), ideas, h("div", {}, list));
+  showIdeas();
 }
 
 function fridgeModal(defaultFrom) {
