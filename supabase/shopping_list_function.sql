@@ -1,5 +1,6 @@
--- Run once in Supabase > SQL Editor. (Builds the shopping list from the meal plan.)
-create function public.generate_shopping_list(p_list_id uuid, p_from date, p_to date)
+-- Run in Supabase > SQL Editor. (Builds the shopping list from the meal plan.)
+-- Cups, tablespoons and teaspoons stay as they are written in the recipe; only grams/kg and ml/l are added together.
+create or replace function public.generate_shopping_list(p_list_id uuid, p_from date, p_to date)
 returns int
 language plpgsql
 security invoker
@@ -33,11 +34,11 @@ begin
     select ri.ingredient_id,
            coalesce(i.name, lower(trim(ri.raw_text)))             as name,
            coalesce(i.category, 'other'::ingredient_category)     as category,
-           case when u.kind = 'count' then u.code
+           case when u.kind = 'count' or u.code in ('cup', 'tbsp', 'tsp') then u.code
                 else (select b.code from public.units b
                       where b.kind = u.kind and b.is_base)
            end                                                    as out_unit,
-           ri.quantity * u.to_base
+           ri.quantity * (case when u.code in ('cup', 'tbsp', 'tsp') then 1 else u.to_base end)
              * (coalesce(e.servings, r.servings)::numeric / r.servings) as base_qty,
            r.id                                                   as recipe_id
     from public.meal_plan_entries e
