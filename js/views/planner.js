@@ -1,13 +1,15 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
-import { listRecipes, photoUrl, getPlan, addPlan, movePlan, removePlan } from "../api.js";
+import { listRecipes, recipeIngredientLines, photoUrl, getPlan, addPlan, movePlan, removePlan } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
 import { printPlan } from "../print.js";
+import { parseWanted, rankByUseUp } from "../useup.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest, regulars } from "../weather.js";
 
 const midnight = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
 let weekStart = midnight(); // the plan shows 7 days from here, starting today
 let forecast = null;
-let ideasOpen = false, ideaTab = "fresh"; // the dinner ideas panel stays open while you plan from it
+let ideasOpen = false, ideaTab = "fresh", useUpText = "";
+let ingLines = null, ingAt = 0; // ingredient text per recipe, loaded when "Use up" is opened and refreshed after a minute // the dinner ideas panel stays open while you plan from it
 
 export async function render(root) {
   if (weekStart < midnight()) weekStart = midnight(); // the app was left open past midnight: never show past days
@@ -103,24 +105,53 @@ export async function render(root) {
     const planned = new Set(plan.map((p) => p.recipe_id));
     const w = forecast?.find((d) => d.date >= today) || null;
     const kind = w ? classifyWeather(w) : "mild";
-    const picks = ideaTab === "fresh" ? suggest(recipes, kind, 4, planned) : regulars(recipes, 5, planned);
     const when = (r) => r.last_planned_on ? `last planned ${dateLabel(parseISO(r.last_planned_on))}` : "not planned yet";
     // Plan onto the first day that has no dinner yet (or the first day if every day has one).
     const free = days.find((d) => !plan.some((p) => p.planned_date === iso(d) && p.meal === "dinner")) || days[0];
     const dayPick = h("select", { id: "ideaDay", "aria-label": "Plan it for" }, days.map((d) => h("option", { value: iso(d), selected: iso(d) === iso(free) }, `${dayLabel(d)} ${dateLabel(d)}`)));
+    const planBtn = (r) => h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { await addPlan(r.id, dayPick.value); toast(`Planned for ${dateLabel(parseISO(dayPick.value))}`); redraw(); }) }, "Plan it");
+    const row = (r, note) => h("div.plan-item", {}, h("div.grow", {}, h("a", { href: `#/recipe/${r.id}` }, r.title), h("span.hint", { style: "display:block;font-size:.8rem" }, note)), planBtn(r));
+
+    let intro, listing;
+    if (ideaTab === "useup") {
+      const results = h("div");
+      const draw = () => {
+        const wanted = parseWanted(useUpText);
+        if (!wanted.length) { mount(results, h("p.hint", {}, "Type the ingredients you want to use up, separated by commas.")); return; }
+        const ranked = rankByUseUp(recipes, ingLines, wanted, planned);
+        mount(results, ranked.length
+          ? ranked.slice(0, 12).map(({ recipe, used }) => row(recipe, `uses ${used.length} of ${wanted.length}: ${used.join(", ")}`))
+          : h("p.hint", {}, "No matches in your recipes."));
+      };
+      const input = h("input", { type: "text", id: "useUp", value: useUpText, placeholder: "e.g. chicken, cabbage, cream", "aria-label": "Ingredients to use up", autocomplete: "off" });
+      const form = h("form.row", { style: "margin:.2rem 0 .6rem", onsubmit: (e) => { e.preventDefault(); useUpText = input.value; draw(); } },
+        h("div.grow", {}, input), h("button.btn.primary.small", { type: "submit" }, "Find meals"));
+      if (!ingLines || Date.now() - ingAt > 60000) {
+        intro = [h("p.hint", {}, "Loading your recipes…")]; listing = [];
+        recipeIngredientLines().then((m) => { ingLines = m; ingAt = Date.now(); showIdeas(); }).catch((x) => toast(x.message || "Couldn't load your recipes", true));
+      } else {
+        intro = [h("p.hint", {}, "Your own recipes that use the ingredients you want to use up, best match first."), form]; listing = [results];
+        draw();
+      }
+    } else {
+      const picks = ideaTab === "fresh" ? suggest(recipes, kind, 4, planned) : regulars(recipes, 5, planned);
+      intro = [h("p.hint", {}, ideaTab === "fresh"
+        ? (w ? `Meals you haven't planned for a while, leaning towards ${kind === "hot" ? "a hot" : kind === "cold" ? "a cool or wet" : "a mild"} day.` : "Meals you haven't planned for a while.")
+        : "The meals you plan most often.")];
+      listing = picks.length ? picks.map((r) => row(r, ideaTab === "regulars" ? `planned ${r.times_planned}×, ${when(r)}` : when(r)))
+        : [h("p.hint", {}, ideaTab === "fresh" ? "Nothing new to suggest yet. Add more recipes." : "Nothing here yet. Meals you plan twice or more will show up here.")];
+    }
+
     mount(ideas, h("div.card", {},
       h("div.row.spread", {}, h("h2", { style: "margin:0" }, "Meal ideas"),
         h("button.btn.small.ghost", { "aria-label": "Close meal ideas", onclick: () => { ideasOpen = false; showIdeas(); } }, "Close")),
       h("div.tabs", { role: "tablist", style: "margin:.6rem 0;border:0" },
         h("button", { role: "tab", "aria-selected": String(ideaTab === "fresh"), onclick: () => { ideaTab = "fresh"; showIdeas(); } }, "Not planned lately"),
-        h("button", { role: "tab", "aria-selected": String(ideaTab === "regulars"), onclick: () => { ideaTab = "regulars"; showIdeas(); } }, "Your regulars")),
-      h("p.hint", {}, ideaTab === "fresh"
-        ? (w ? `Meals you haven't planned for a while, leaning towards ${kind === "hot" ? "a hot" : kind === "cold" ? "a cool or wet" : "a mild"} day.` : "Meals you haven't planned for a while.")
-        : "The meals you plan most often."),
-      h("div.row", { style: "margin-bottom:.4rem;align-items:center" }, h("label", { for: "ideaDay" }, "Plan it for"), dayPick),
-      picks.length ? picks.map((r) => h("div.plan-item", {}, h("div.grow", {}, h("a", { href: `#/recipe/${r.id}` }, r.title), h("span.hint", { style: "display:block;font-size:.8rem" }, ideaTab === "regulars" ? `planned ${r.times_planned}×, ${when(r)}` : when(r))),
-        h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { await addPlan(r.id, dayPick.value); toast(`Planned for ${dateLabel(parseISO(dayPick.value))}`); redraw(); }) }, "Plan it")))
-        : h("p.hint", {}, ideaTab === "fresh" ? "Nothing new to suggest yet. Add more recipes." : "Nothing here yet. Meals you plan twice or more will show up here.")));
+        h("button", { role: "tab", "aria-selected": String(ideaTab === "regulars"), onclick: () => { ideaTab = "regulars"; showIdeas(); } }, "Your regulars"),
+        h("button", { role: "tab", "aria-selected": String(ideaTab === "useup"), onclick: () => { ideaTab = "useup"; showIdeas(); } }, "Use up")),
+      ...intro,
+      h("div.row", { style: "margin:.4rem 0;align-items:center" }, h("label", { for: "ideaDay" }, "Plan it for"), dayPick),
+      ...listing));
   }
 
   mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), ideas, h("div", {}, list));

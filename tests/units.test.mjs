@@ -5,6 +5,7 @@ import { guessCategory } from "../js/categories.js";
 import { iso, startOfWeek, addDays } from "../js/dates.js";
 import { stripQuantity, ingredientName, composeLine, cleanDisplayName } from "../js/ingredient-text.js";
 import { shopAmount, fmtShop } from "../js/shopamount.js";
+import { parseWanted, lineUses, rankByUseUp, ingredientTexts } from "../js/useup.js";
 import { summariseUsage } from "../js/usage.js";
 import { scoreRecipe, suggest, regulars } from "../js/weather.js";
 
@@ -84,4 +85,40 @@ test("dry ingredients are not shown in millilitres on the shopping list", () => 
   assert.equal(fmtShop("butter beans", 250, "ml"), "250 ml");   // not butter
   assert.equal(fmtShop("onion", 2, "each"), "2");
   assert.deepEqual(shopAmount("flour", null, null), { quantity: null, unit: null });
+});
+
+test("use up: typed ingredients are cleaned and staples dropped", () => {
+  assert.deepEqual(parseWanted("Chicken, cabbage and cream"), ["Chicken", "cabbage", "cream"]);
+  assert.deepEqual(parseWanted("salt, olive oil, chicken, Chicken"), ["chicken"]);
+  assert.deepEqual(parseWanted("  "), []);
+});
+test("use up: forgiving matching on ingredient lines", () => {
+  assert.equal(lineUses("tomato", "cherry tomatoes"), true);
+  assert.equal(lineUses("mince", "beef mince"), true);
+  assert.equal(lineUses("chicken", "chicken thighs, skin on"), true);
+  assert.equal(lineUses("chicken", "chicken stock"), false);
+  assert.equal(lineUses("chicken stock", "chicken stock"), true);
+  assert.equal(lineUses("onion", "spring onions"), true);
+  assert.equal(lineUses("cream", "ice cream"), true); // accepted: rare false match
+  assert.equal(lineUses("pea", "peanut butter"), false);
+});
+test("use up: recipes are ranked by how many wanted ingredients they use", () => {
+  const recipes = [
+    { id: "a", title: "Chicken soup", last_planned_on: "2026-10-01" },
+    { id: "b", title: "Cabbage slaw", last_planned_on: null },
+    { id: "c", title: "Creamy chicken cabbage bake", last_planned_on: "2026-09-01" },
+    { id: "d", title: "Porridge", last_planned_on: null },
+    { id: "e", title: "Chicken curry", last_planned_on: "2026-08-01" },
+  ];
+  const lines = new Map([
+    ["a", ["chicken thighs", "carrot"]], ["b", ["cabbage", "mayo"]],
+    ["c", ["chicken breast", "cabbage", "cream"]], ["d", ["oats", "milk"]], ["e", ["chicken thighs"]],
+  ]);
+  const wanted = ["chicken", "cabbage", "cream"];
+  const r = rankByUseUp(recipes, lines, wanted);
+  assert.deepEqual(r.map((x) => x.recipe.id), ["c", "b", "e", "a"]); // 3 first, then ties: never planned, then longest ago
+  assert.deepEqual(r[0].used, ["chicken", "cabbage", "cream"]);
+  assert.deepEqual(rankByUseUp(recipes, lines, wanted, new Set(["c"])).map((x) => x.recipe.id), ["b", "e", "a"]);
+  assert.deepEqual(rankByUseUp(recipes, lines, ["lobster"]), []);
+  assert.deepEqual(ingredientTexts({ raw_text: "2 tbsp olive oil", ingredients: { name: "olive oil" } }), ["olive oil", "olive oil"]);
 });

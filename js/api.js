@@ -2,6 +2,7 @@ import { sb } from "./supabase.js";
 import { PHOTO_BUCKET } from "./config.js";
 import { guessCategory } from "./categories.js";
 import { summariseUsage } from "./usage.js";
+import { ingredientTexts } from "./useup.js";
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || "Something went wrong."); return data; };
 
@@ -108,6 +109,17 @@ export async function photoUrl(path) {
   if (error) return null;
   urlCache.set(path, { url: data.signedUrl, exp: Date.now() + 50 * 60 * 1000 });
   return data.signedUrl;
+}
+
+// Ingredient text for every recipe, for "Use up" matching: Map(recipe id -> [text, ...]). Optional ingredients are skipped.
+export async function recipeIngredientLines() {
+  const rows = must(await sb.from("recipe_ingredients").select("recipe_id,raw_text,optional,ingredients(name)").eq("optional", false));
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.recipe_id)) map.set(row.recipe_id, []);
+    map.get(row.recipe_id).push(...ingredientTexts(row));
+  }
+  return map;
 }
 
 // ---------- cooking log ----------
