@@ -1,5 +1,5 @@
 import { h, mount, toast, busy, confirmBox, modal } from "../ui.js";
-import { getRecipe, photoUrl, setFavourite, deleteRecipe, logCooked, addPlan } from "../api.js";
+import { getRecipe, photoUrl, setFavourite, deleteRecipe, addPlan } from "../api.js";
 import { formatQuantity, formatNumber, fmtDuration } from "../units.js";
 import { iso } from "../dates.js";
 import { printRecipes } from "../print.js";
@@ -51,12 +51,11 @@ export async function render(root, [id]) {
     h("div.hero", {}, h("div", {},
       h("h1", {}, r.title),
       r.description ? h("p", {}, r.description) : null,
-      h("p.hint", {}, [r.prep_minutes ? `Prep ${r.prep_minutes} min` : null, r.cook_minutes ? `Cook ${r.cook_minutes} min` : null, mins ? null : null, r.times_cooked ? `Cooked ${r.times_cooked} time${r.times_cooked > 1 ? "s" : ""}` : "Not cooked yet"].filter(Boolean).join(" · ")),
+      h("p.hint", {}, [r.prep_minutes ? `Prep ${r.prep_minutes} min` : null, r.cook_minutes ? `Cook ${r.cook_minutes} min` : null, mins ? null : null, r.times_planned ? `Planned ${r.times_planned} time${r.times_planned > 1 ? "s" : ""}` : "Not planned yet"].filter(Boolean).join(" · ")),
       r.tags.length ? h("div.row", {}, r.tags.map((t) => h("span.chip", {}, t))) : null,
       r.source_url ? h("p.hint", {}, "From ", h("a", { href: r.source_url, rel: "noopener noreferrer", target: "_blank" }, new URL(r.source_url).hostname)) : null,
       h("div.row", { style: "margin-top:.8rem" }, r.video_url ? h("a.btn.small.primary", { href: r.video_url, target: "_blank", rel: "noopener noreferrer" }, "▶ Watch video") : null, fav,
         h("button.btn.small", { onclick: () => quickPlan(r) }, "Add to plan"),
-        h("button.btn.small", { onclick: () => cookedModal(r) }, "I cooked this"),
         h("button.btn.small", { onclick: (e) => busy(e.currentTarget, () => printRecipes([r], { title: r.title, cover: false })) }, "Print / PDF"),
         h("a.btn.small", { href: `#/edit/${r.id}` }, "Edit"),
         h("button.btn.small.danger", { onclick: async () => { if (await confirmBox("Delete this recipe?", `“${r.title}” will be removed from your recipes and any meal plans.`)) { await deleteRecipe(r.id, r.image_path); toast("Deleted"); location.hash = "#/recipes"; } } }, "Delete"))),
@@ -69,13 +68,4 @@ export async function render(root, [id]) {
       ingBox),
     h("div.card", { style: "margin-top:1rem" }, h("h2", {}, "Method"), h("ol.step-list", {}, r.steps.map(stepEl))));
   drawIngredients();
-}
-
-function cookedModal(r) {
-  modal((box, close) => {
-    let rating = 0;
-    const stars = h("div.row", {}, [1, 2, 3, 4, 5].map((n) => h("button.btn.small", { "aria-label": `${n} star${n > 1 ? "s" : ""}`, onclick: (e) => { rating = n; [...stars.children].forEach((b, i) => b.classList.toggle("primary", i < n)); } }, "★")));
-    const go = h("button.btn.primary", { onclick: () => busy(go, async () => { await logCooked(r.id, rating); toast("Logged. Nice one."); close(); }) }, "Save");
-    mount(box, h("h2", {}, "How was it?"), stars, h("p.hint", {}, "A rating is optional."), h("div.row.end", {}, h("button.btn", { onclick: close }, "Cancel"), go));
-  });
 }

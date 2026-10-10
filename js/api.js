@@ -1,6 +1,7 @@
 import { sb } from "./supabase.js";
 import { PHOTO_BUCKET } from "./config.js";
 import { guessCategory } from "./categories.js";
+import { summariseUsage } from "./usage.js";
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || "Something went wrong."); return data; };
 
@@ -11,13 +12,23 @@ export async function currentUser() {
 const uid = async () => { const u = await currentUser(); if (!u) throw new Error("Please sign in again."); return u.id; };
 
 // ---------- recipes ----------
+
+// A recipe counts as "used" once it has been on the plan for today or an earlier day (skipped meals don't count).
+// Old "I cooked this" logs are folded in, one per recipe per day, so nothing is double counted.
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+async function usageFor(ids) {
+  let plan = sb.from("meal_plan_entries").select("recipe_id,planned_date").lte("planned_date", todayIso()).neq("status", "skipped");
+  let cook = sb.from("cook_events").select("recipe_id,cooked_on");
+  if (ids) { plan = plan.in("recipe_id", ids); cook = cook.in("recipe_id", ids); }
+  const [p, c] = await Promise.all([plan.then(must), cook.then(must)]);
+  return summariseUsage(p, c);
+}
 export async function listRecipes() {
-  const [recipes, stats] = await Promise.all([
+  const [recipes, usage] = await Promise.all([
     sb.from("recipes").select("id,title,description,image_path,servings,prep_minutes,cook_minutes,tags,is_favourite,created_at").order("created_at", { ascending: false }).then(must),
-    sb.from("recipe_cook_stats").select("recipe_id,times_cooked,last_cooked_on").then(must),
+    usageFor(null),
   ]);
-  const by = new Map(stats.map((s) => [s.recipe_id, s]));
-  return recipes.map((r) => ({ ...r, times_cooked: by.get(r.id)?.times_cooked ?? 0, last_cooked_on: by.get(r.id)?.last_cooked_on ?? null }));
+  return recipes.map((r) => ({ ...r, times_planned: usage.get(r.id)?.times_planned ?? 0, last_planned_on: usage.get(r.id)?.last_planned_on ?? null }));
 }
 
 export async function getRecipe(id) {
@@ -25,10 +36,10 @@ export async function getRecipe(id) {
     sb.from("recipes").select("*").eq("id", id).maybeSingle().then(must),
     sb.from("recipe_ingredients").select("*").eq("recipe_id", id).order("position").then(must),
     sb.from("recipe_steps").select("*").eq("recipe_id", id).order("position").then(must),
-    sb.from("recipe_cook_stats").select("times_cooked,last_cooked_on").eq("recipe_id", id).maybeSingle().then(must),
+    usageFor([id]),
   ]);
   if (!r) return null;
-  return { ...r, ingredients: ings, steps, times_cooked: stats?.times_cooked ?? 0, last_cooked_on: stats?.last_cooked_on ?? null };
+  return { ...r, ingredients: ings, steps, times_planned: stats.get(id)?.times_planned ?? 0, last_planned_on: stats.get(id)?.last_planned_on ?? null };
 }
 
 async function resolveIngredientIds(names, owner) {

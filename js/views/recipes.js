@@ -21,7 +21,7 @@ export async function render(root) {
     return h("div.tile", {},
       h("a.tile-link", { href: `#/recipe/${r.id}` }, pic, h("div.body", {},
         h("div.title", {}, r.is_favourite ? "★ " : "", r.title),
-        h("div.meta", {}, [mins ? `${mins} min` : null, `serves ${r.servings}`, r.times_cooked ? `cooked ${r.times_cooked}×` : null].filter(Boolean).join(" · ")))),
+        h("div.meta", {}, [mins ? `${mins} min` : null, `serves ${r.servings}`, r.times_planned ? `planned ${r.times_planned}×` : null].filter(Boolean).join(" · ")))),
       h("div.tile-actions", {}, h("button.btn.small", { "aria-label": `Add ${r.title} to plan`, onclick: () => quickPlan(r) }, "+ Plan")));
   }
 

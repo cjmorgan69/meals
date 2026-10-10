@@ -35,14 +35,22 @@ export function scoreRecipe(r, kind, today = new Date()) {
   if (kind === "hot") { if (HOT.test(text)) s += 3; if (COLD.test(text)) s -= 2; }
   if (kind === "cold") { if (COLD.test(text)) s += 3; if (HOT.test(text)) s -= 2; }
   if (r.is_favourite) s += 1;
-  if (r.last_cooked_on) {
-    const days = (today - new Date(r.last_cooked_on)) / 86400000;
-    s += days > 28 ? 1.5 : days < 7 ? -3 : 0;
-  } else s += 0.5; // never cooked: worth a try
+  if (r.last_planned_on) {
+    // The longer since it was last on the plan, the better (capped at about four months).
+    const days = (today - new Date(r.last_planned_on)) / 86400000;
+    s += days < 7 ? -3 : Math.min(days, 120) / 40;
+  } else s += 2; // never planned: worth a try
   return s;
 }
 export function suggest(recipes, kind, n = 3, exclude = new Set()) {
   return recipes.filter((r) => !exclude.has(r.id))
     .map((r) => ({ r, s: scoreRecipe(r, kind) + Math.random() * 0.3 }))
     .sort((a, b) => b.s - a.s).slice(0, n).map((x) => x.r);
+}
+
+/** Meals you plan most often (at least twice), most planned first, then most recent. */
+export function regulars(recipes, n = 4, exclude = new Set()) {
+  return recipes.filter((r) => !exclude.has(r.id) && (r.times_planned || 0) >= 2)
+    .sort((a, b) => b.times_planned - a.times_planned || String(b.last_planned_on).localeCompare(String(a.last_planned_on)))
+    .slice(0, n);
 }
