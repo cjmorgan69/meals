@@ -1,6 +1,6 @@
 // Minimal service worker: network first, falling back to the last copy, so the app can be
 // installed to the home screen and reopens without a signal. Only same-origin files are cached.
-const CACHE = "recipe-planner-shell-v2";
+const CACHE = "recipe-planner-shell-v3";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
@@ -15,7 +15,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: "no-cache" })
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
