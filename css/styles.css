@@ -147,3 +147,28 @@ textarea{min-height:90px;resize:vertical}
 .book-pick input[type=checkbox]{width:1.2rem;height:1.2rem;accent-color:var(--brand)}
 .tile-link{display:flex;flex-direction:column;text-decoration:none;color:inherit;flex:1}
 .tile-actions{padding:0 .8rem .8rem}
+
+/* fridge meal plan */
+@media print{
+  .pl-page{page-break-after:always;font-family:"Bricolage Grotesque",system-ui,sans-serif}
+  .pl-page:last-child{page-break-after:auto}
+  .pl-head{display:flex;align-items:baseline;justify-content:space-between;gap:10mm;border-bottom:1.5pt solid #1f5b43;padding-bottom:2mm;margin-bottom:4mm}
+  .pl-head h1{font-size:24pt;margin:0;color:#1f5b43}
+  .pl-head p{margin:0;font-size:12pt;color:#333}
+  .pl-grid{display:grid;gap:4mm}
+  .pl-grid.land{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);height:158mm}
+  .pl-grid.port{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(4,1fr);height:225mm}
+  .pl-day{border:1pt solid #9bb5a8;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;min-height:0;break-inside:avoid}
+  .pl-date{background:#1f5b43;color:#fff;padding:1.5mm 3mm;display:flex;justify-content:space-between;align-items:baseline}
+  .pl-date strong{font-size:13pt}
+  .pl-date span{font-size:10.5pt}
+  .pl-meals{flex:1;display:flex;flex-direction:column;min-height:0}
+  .pl-meal{flex:1;display:flex;flex-direction:column;min-height:0}
+  .pl-meal img,.pl-noimg{flex:1;min-height:0;width:100%;object-fit:cover;display:block;background:#e6efe9}
+  .pl-meals.many .pl-meal{flex-direction:row;border-top:.5pt solid #ccc}
+  .pl-meals.many .pl-meal img,.pl-meals.many .pl-noimg{width:35%;flex:none}
+  .pl-name{padding:1.5mm 3mm;font-size:12pt;font-weight:700;line-height:1.2;color:#111}
+  .pl-name small{display:block;font-size:8.5pt;font-weight:400;color:#555}
+  .pl-meals.many .pl-name{flex:1;font-size:10.5pt;align-self:center}
+  .pl-empty{flex:1;display:grid;place-items:center;color:#888;font-size:10pt}
+}

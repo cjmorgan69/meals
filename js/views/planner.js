@@ -1,6 +1,7 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
 import { listRecipes, getPlan, addPlan, setPlanStatus, removePlan, logCooked } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
+import { printPlan } from "../print.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest } from "../weather.js";
 
 const midnight = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
@@ -72,4 +73,46 @@ export async function render(root) {
   } }, "Suggest dinners");
 
   mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list for these days")), ideas, h("div", {}, list));
+}
+
+function fridgeModal(defaultFrom) {
+  modal((box, close) => {
+    const today = new Date();
+    const nextMonday = () => { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate()); const add = ((8 - d.getDay()) % 7) || 7; return addDays(d, add); };
+    const from = h("input", { type: "date", id: "pf", value: defaultFrom, min: iso(today) });
+    const len = h("select", { id: "pn" }, [3, 5, 7, 10, 14].map((n) => h("option", { value: n, selected: n === 7 }, `${n} days`)));
+    const paper = h("select", { id: "pp" }, h("option", { value: "A4" }, "A4"), h("option", { value: "Letter" }, "US Letter"));
+    const orient = h("select", { id: "po" }, h("option", { value: "landscape" }, "Landscape"), h("option", { value: "portrait" }, "Portrait"));
+    const dinners = h("input", { type: "checkbox", id: "pd" });
+    const title = h("input", { type: "text", id: "pt", value: "What's for dinner", maxlength: 40 });
+    const err = h("p.error", { role: "alert" });
+    const go = h("button.btn.primary", { onclick: () => busy(go, async () => {
+      err.textContent = "";
+      if (!from.value) { err.textContent = "Pick a start date."; return; }
+      const start = parseISO(from.value), n = Number(len.value), end = addDays(start, n - 1);
+      let entries = (await getPlan(iso(start), iso(end))).filter((e) => e.status !== "skipped");
+      if (dinners.checked) entries = entries.filter((e) => e.meal === "dinner");
+      const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
+      const days = Array.from({ length: n }, (_, i) => {
+        const d = addDays(start, i), key = iso(d);
+        return { date: d, entries: entries.filter((e) => e.planned_date === key).sort((a, b) => order[a.meal] - order[b.meal])
+          .map((e) => ({ title: e.recipes?.title || "Recipe", image_path: e.recipes?.image_path || null, meal: e.meal })) };
+      });
+      close();
+      await printPlan(days, { title: title.value.trim() || "What's for dinner", paper: paper.value, orientation: orient.value });
+    }, { onError: (x) => { err.textContent = x.message; } }) }, "Make PDF");
+    mount(box,
+      h("h2", {}, "Print the plan for the fridge"),
+      h("div.field", {}, h("label", { for: "pt" }, "Heading"), title),
+      h("div.field", {}, h("label", { for: "pf" }, "Start on"), from,
+        h("div.row", { style: "margin-top:.4rem" },
+          h("button.btn.small", { type: "button", onclick: () => { from.value = iso(today); } }, "Today"),
+          h("button.btn.small", { type: "button", onclick: () => { from.value = iso(addDays(today, 1)); } }, "Tomorrow"),
+          h("button.btn.small", { type: "button", onclick: () => { from.value = iso(nextMonday()); } }, "Next Monday"))),
+      h("div.row", {}, h("div.field", {}, h("label", { for: "pn" }, "For"), len), h("div.field", {}, h("label", { for: "pp" }, "Paper"), paper), h("div.field", {}, h("label", { for: "po" }, "Layout"), orient)),
+      h("label", { style: "display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem" }, dinners, "Dinners only"),
+      h("p.hint", {}, "Your browser's print window opens. Choose “Save as PDF”, or print it straight away."),
+      err,
+      h("div.row.end", {}, h("button.btn", { onclick: close }, "Cancel"), go));
+  });
 }
