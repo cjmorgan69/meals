@@ -124,6 +124,11 @@ export async function getList() {
 export async function listItems(listId) {
   return must(await sb.from("shopping_list_items").select("*").eq("list_id", listId).order("created_at"));
 }
+export async function recipeTitles(ids) {
+  if (!ids.length) return new Map();
+  const rows = must(await sb.from("recipes").select("id,title").in("id", ids));
+  return new Map(rows.map((r) => [r.id, r.title]));
+}
 export async function generateList(listId, from, to) {
   return must(await sb.rpc("generate_shopping_list", { p_list_id: listId, p_from: from, p_to: to }));
 }

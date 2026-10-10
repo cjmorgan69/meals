@@ -68,5 +68,5 @@ export async function render(root) {
         h("button.btn.small", { onclick: async () => { await addPlan(r.id, w?.date || today); redraw(); } }, "Plan it")))) : h("p.hint", {}, "Nothing new to suggest yet. Add more recipes."));
   } }, "Suggest dinners");
 
-  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list for this week")), ideas, h("div", {}, list));
+  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list…")), ideas, h("div", {}, list));
 }
