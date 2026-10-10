@@ -165,15 +165,25 @@ export async function clearAllItems(listId) { must(await sb.from("shopping_list_
 export async function clearChecked(listId) { must(await sb.from("shopping_list_items").delete().eq("list_id", listId).eq("checked", true)); }
 
 // ---------- import (edge function) ----------
-export async function importRecipe(body) {
+async function callImport(body) {
   const { data, error } = await sb.functions.invoke("import-recipe", { body });
   if (error) {
     let msg = error.message;
     try { const j = await error.context.json(); if (j?.error) msg = j.error; if (j?.code === "quota") { const e = new Error(msg); e.code = "quota"; throw e; } } catch (e) { if (e.code) throw e; }
     throw new Error(msg || "The import failed.");
   }
+  return data;
+}
+export async function importRecipe(body) {
+  const data = await callImport(body);
   if (data?.error || !data?.recipe) throw new Error(data?.error || "Nothing came back from the import.");
   return data;
+}
+/** A photo of ingredients (fridge, pantry, bench) -> a list of ingredient names. Uses one photo allowance. */
+export async function ingredientsFromPhoto(img) {
+  const data = await callImport({ mode: "ingredients", image_base64: img.base64, mime: img.mime });
+  if (data?.error) throw new Error(data.error);
+  return Array.isArray(data?.ingredients) ? data.ingredients : [];
 }
 
 // ---------- account ----------

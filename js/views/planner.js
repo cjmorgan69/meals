@@ -1,7 +1,8 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
-import { listRecipes, recipeIngredientLines, photoUrl, getPlan, addPlan, movePlan, removePlan } from "../api.js";
+import { listRecipes, recipeIngredientLines, ingredientsFromPhoto, photoUrl, getPlan, addPlan, movePlan, removePlan } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
 import { printPlan } from "../print.js";
+import { downscaleImage } from "../image.js";
 import { parseWanted, rankByUseUp } from "../useup.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest, regulars } from "../weather.js";
 
@@ -124,13 +125,30 @@ export async function render(root) {
           : h("p.hint", {}, "No matches in your recipes."));
       };
       const input = h("input", { type: "text", id: "useUp", value: useUpText, placeholder: "e.g. chicken, cabbage, cream", "aria-label": "Ingredients to use up", autocomplete: "off" });
-      const form = h("form.row", { style: "margin:.2rem 0 .6rem", onsubmit: (e) => { e.preventDefault(); useUpText = input.value; draw(); } },
+      const form = h("form.row", { style: "margin:.2rem 0 .4rem", onsubmit: (e) => { e.preventDefault(); useUpText = input.value; draw(); } },
         h("div.grow", {}, input), h("button.btn.primary.small", { type: "submit" }, "Find meals"));
+      // A photo of what's in the fridge or pantry fills the box with the ingredients it can see. The user checks the list before searching.
+      const photoLabel = h("span", {}, "📷 Photo of ingredients");
+      const photoIn = h("input", { type: "file", accept: "image/*", capture: "environment", style: "display:none", onchange: async (e) => {
+        const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+        photoLabel.textContent = "Reading photo…"; photoBtn.classList.add("disabled");
+        try {
+          const found = await ingredientsFromPhoto(await downscaleImage(file, 1280, 0.8));
+          if (!found.length) toast("Couldn't pick out any ingredients. Try a closer, brighter photo, or type them in.", true);
+          else {
+            const merged = parseWanted([input.value, ...found].join(", ")).join(", ");
+            input.value = useUpText = merged; draw(); toast("Check the list, then edit it if needed.");
+          }
+        } catch (x) { toast(x.message || "Couldn't read that photo", true); }
+        finally { photoLabel.textContent = "📷 Photo of ingredients"; photoBtn.classList.remove("disabled"); }
+      } });
+      const photoBtn = h("label.btn.small", {}, photoLabel, photoIn);
+      const photoRow = h("div.row", { style: "margin-bottom:.4rem;align-items:center" }, photoBtn, h("span.hint", {}, "Uses one photo import. The photo isn't kept."));
       if (!ingLines || Date.now() - ingAt > 60000) {
         intro = [h("p.hint", {}, "Loading your recipes…")]; listing = [];
         recipeIngredientLines().then((m) => { ingLines = m; ingAt = Date.now(); showIdeas(); }).catch((x) => toast(x.message || "Couldn't load your recipes", true));
       } else {
-        intro = [h("p.hint", {}, "Your own recipes that use the ingredients you want to use up, best match first."), form]; listing = [results];
+        intro = [h("p.hint", {}, "Your own recipes that use the ingredients you want to use up, best match first."), form, photoRow]; listing = [results];
         draw();
       }
     } else {

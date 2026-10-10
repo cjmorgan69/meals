@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { normaliseIngredientList } from "../supabase/functions/import-recipe/ai.ts";
 import { parseIngredientLine, guessCategory, normaliseName, parseLeadingQuantity } from "../supabase/functions/import-recipe/ingredients.ts";
 import { parseDuration, parseYield, guessTimer, recipeFromJsonLd, findRecipeNode, instructionsToSteps, imageFromJsonLd } from "../supabase/functions/import-recipe/jsonld.ts";
 import { htmlToText, extractJsonLd, decodeEntities, extractMetaImage } from "../supabase/functions/import-recipe/html.ts";
@@ -278,4 +279,11 @@ test("pack words stay out of the name when the pack size is the amount", () => {
   assert.equal(b.name, "chickpea");
   const c = p("250 ml jar of passata");
   assert.equal(c.unit, "ml"); assert.equal(c.name, "passata");
+});
+
+test("ingredient list from a photo is cleaned: lowercase, short, no repeats, at most 20", () => {
+  assert.deepEqual(normaliseIngredientList({ ingredients: ["Chicken", " cabbage ", "CHICKEN", "cream!", 5, ""] }), ["chicken", "cabbage", "cream"]);
+  assert.deepEqual(normaliseIngredientList(null), []);
+  assert.deepEqual(normaliseIngredientList({ ingredients: "chicken" }), []);
+  assert.equal(normaliseIngredientList({ ingredients: Array.from({ length: 40 }, (_, i) => "item " + i) }).length, 20);
 });

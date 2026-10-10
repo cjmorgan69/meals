@@ -193,3 +193,4 @@ textarea{min-height:90px;resize:vertical}
 .recipes-actions{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 1.1rem}
 .search-row{margin-top:.2rem}
 .recipes-actions>a{margin-left:auto}
+.btn.disabled{pointer-events:none;opacity:.6}

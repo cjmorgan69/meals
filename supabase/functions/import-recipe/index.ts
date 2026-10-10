@@ -8,7 +8,7 @@
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided automatically.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildPrompt, callGemini, normaliseAiRecipe, parseJsonLoose } from "./ai.ts";
+import { buildPrompt, callGemini, INGREDIENT_LIST_SCHEMA, INGREDIENT_PHOTO_PROMPT, normaliseAiRecipe, normaliseIngredientList, parseJsonLoose } from "./ai.ts";
 import { extractJsonLd, extractMetaImage, htmlToText } from "./html.ts";
 import { findRecipeNode, imageFromJsonLd, recipeFromJsonLd } from "./jsonld.ts";
 import { videoFromHtml, videoFromJsonLd } from "./video.ts";
@@ -61,7 +61,7 @@ async function handle(req: Request): Promise<Response> {
     return fail(400, "bad_request", "The request wasn't valid JSON.");
   }
   const mode = body.mode;
-  if (mode !== "photo" && mode !== "url" && mode !== "text") return fail(400, "bad_request", "Unknown import type.");
+  if (mode !== "photo" && mode !== "url" && mode !== "text" && mode !== "ingredients") return fail(400, "bad_request", "Unknown import type.");
 
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   const model = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash-lite";
@@ -104,6 +104,7 @@ async function handle(req: Request): Promise<Response> {
     if (content.length < 40) return fail(400, "bad_request", "Paste a little more of the recipe.");
     if (content.length > 20_000) return fail(400, "bad_request", "That text is too long (20,000 characters at most).");
   } else {
+    // "photo" (a recipe) and "ingredients" (what's in the fridge) both take a picture
     const mime = typeof body.mime === "string" ? body.mime : "";
     const data = typeof body.image_base64 === "string" ? body.image_base64 : "";
     if (!IMAGE_MIMES.includes(mime) || data.length < 100 || !/^[A-Za-z0-9+/=\s]+$/.test(data)) {
@@ -117,7 +118,7 @@ async function handle(req: Request): Promise<Response> {
     return fail(500, "not_configured", "The Gemini API key hasn't been added yet. Add GEMINI_API_KEY under Edge Functions > Secrets.");
   }
 
-  const kind = mode === "photo" ? "photo" : mode === "text" ? "text" : "url_ai";
+  const kind = mode === "photo" || mode === "ingredients" ? "photo" : mode === "text" ? "text" : "url_ai"; // fridge photos share the photo allowance
   const { data: usageId, error: quotaErr } = await admin.rpc("try_consume_ai_quota", { p_user: userId, p_kind: kind });
   if (quotaErr) {
     console.error("quota check failed:", quotaErr.message);
@@ -132,8 +133,9 @@ async function handle(req: Request): Promise<Response> {
     result = await callGemini({
       apiKey,
       model,
-      prompt: buildPrompt(mode, content, sourceUrl ?? undefined),
+      prompt: mode === "ingredients" ? INGREDIENT_PHOTO_PROMPT : buildPrompt(mode, content, sourceUrl ?? undefined),
       image,
+      schema: mode === "ingredients" ? INGREDIENT_LIST_SCHEMA : undefined,
     });
   } catch (e) {
     console.error("gemini failed:", e instanceof Error ? e.message : e);
@@ -148,6 +150,16 @@ async function handle(req: Request): Promise<Response> {
     output_tokens: result.outputTokens,
     cost_usd_micros: Math.round(result.inputTokens * priceIn + result.outputTokens * priceOut),
   }).eq("id", usageId);
+
+  if (mode === "ingredients") {
+    let list: string[] = [];
+    try {
+      list = normaliseIngredientList(parseJsonLoose(result.text));
+    } catch (e) {
+      console.error("could not parse ingredient list:", e instanceof Error ? e.message : e);
+    }
+    return reply(200, { ingredients: list });
+  }
 
   let recipe = null;
   try {
