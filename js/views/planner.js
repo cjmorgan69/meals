@@ -1,7 +1,7 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
 import { listRecipes, recipeIngredientLines, ingredientsFromPhoto, photoUrl, getPlan, addPlan, movePlan, removePlan } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
-import { printPlan } from "../print.js";
+import { printPlan, phonePrintNote } from "../print.js";
 import { downscaleImage } from "../image.js";
 import { parseWanted, rankByUseUp } from "../useup.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest, regulars } from "../weather.js";
@@ -172,7 +172,7 @@ export async function render(root) {
       ...listing));
   }
 
-  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), ideas, h("div", {}, list));
+  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("button.btn.small", { onclick: () => fridgeModal(from) }, "Print for the fridge")), phonePrintNote(), ideas, h("div", {}, list));
   showIdeas();
 }
 
@@ -212,7 +212,7 @@ function fridgeModal(defaultFrom) {
           h("button.btn.small", { type: "button", onclick: () => { from.value = iso(nextMonday()); } }, "Next Monday"))),
       h("div.row", {}, h("div.field", {}, h("label", { for: "pn" }, "For"), len), h("div.field", {}, h("label", { for: "pp" }, "Paper"), paper), h("div.field", {}, h("label", { for: "po" }, "Layout"), orient)),
       h("label", { style: "display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem" }, dinners, "Dinners only"),
-      h("p.hint", {}, "Your browser's print window opens. Choose “Save as PDF”, or print it straight away."),
+      h("p.hint", {}, "Your browser's print window opens. Choose “Save as PDF”, or print it straight away."), phonePrintNote(),
       err,
       h("div.row.end", {}, h("button.btn", { onclick: close }, "Cancel"), go));
   });

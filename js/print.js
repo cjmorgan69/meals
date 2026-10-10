@@ -1,5 +1,5 @@
 // Builds a print-ready recipe book in the page and opens the browser's print dialog ("Save as PDF").
-import { h, modal } from "./ui.js";
+import { h } from "./ui.js";
 import { photoUrl } from "./api.js";
 import { fmtDuration } from "./units.js";
 
@@ -27,11 +27,7 @@ function recipePage(r, img) {
     r.source_url ? h("p.bk-src", {}, `Source: ${r.source_url}`) : null);
 }
 
-/**
- * Puts print-ready pages in the document and opens the print dialog ("Save as PDF").
- * Phones only allow printing straight after a tap, and building the pages takes a moment, so on a phone
- * (or any time the tap has expired) we show a "ready" box and print from its button.
- */
+/** Puts print-ready pages in the document, opens the print dialog ("Save as PDF"), and cleans up afterwards. */
 async function present(pages, { paper = "A4", orientation = "portrait" } = {}) {
   document.getElementById("print-root")?.remove(); // a leftover from an earlier attempt
   const size = `${paper === "Letter" ? "letter" : "A4"} ${orientation}`;
@@ -42,19 +38,13 @@ async function present(pages, { paper = "A4", orientation = "portrait" } = {}) {
   await Promise.all([...root.querySelectorAll("img")].map(loadImg));
   const done = () => { root.remove(); document.body.classList.remove("printing"); window.removeEventListener("afterprint", done); };
   window.addEventListener("afterprint", done);
-  const needsTap = navigator.userActivation ? !navigator.userActivation.isActive : false;
+  window.print();
+}
+
+/** A reminder shown to phone users only: printing to PDF works in the browser, not in the installed home-screen app. */
+export function phonePrintNote() {
   const phone = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-  if (!needsTap && !phone) { window.print(); return; }
-  modal((box, close) => {
-    const finish = () => { close(); done(); };
-    box.append(
-      h("h2", {}, "Ready to print"),
-      h("p", {}, "Tap the button, then choose “Save as PDF” (or your printer) in the window that opens."),
-      h("div.row.end", {},
-        h("button.btn", { onclick: finish }, "Cancel"),
-        h("button.btn.primary", { onclick: () => window.print() }, "Print / Save as PDF")),
-      h("p.hint", {}, "If nothing opens, open this page in your phone's browser (Safari or Chrome) rather than the installed app, and try again."));
-  });
+  return phone ? h("p.hint", {}, "On a phone, open this page in your browser (Safari or Chrome) to save the PDF. It won't work from the installed home-screen app.") : null;
 }
 
 export async function printRecipes(recipes, { title = "My recipes", paper = "A4", cover = true } = {}) {

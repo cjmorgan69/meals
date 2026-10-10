@@ -1,6 +1,6 @@
 import { h, mount, busy, toast } from "../ui.js";
 import { listRecipes, getRecipe } from "../api.js";
-import { printRecipes } from "../print.js";
+import { printRecipes, phonePrintNote } from "../print.js";
 
 export async function render(root) {
   const recipes = await listRecipes();
@@ -77,6 +77,6 @@ export async function render(root) {
         tags.slice(0, 8).map((t) => h("button.btn.small", { onclick: () => setAll(recipes.filter((r) => r.tags.includes(t)).map((r) => r.id)) }, t))),
       h("p.hint", {}, "Tick the recipes you want, then drag ⠿ (or use ↑ ↓) to set the order they appear in the book."), list,
       h("div.row.spread", { style: "margin-top:1rem" }, count, go)),
-    h("p.hint", { style: "margin-top:1rem" }, "Your browser's print window opens. Choose “Save as PDF” as the destination. Turn off “Headers and footers” for a cleaner page."));
+    phonePrintNote(), h("p.hint", { style: "margin-top:1rem" }, "Your browser's print window opens. Choose “Save as PDF” as the destination. Turn off “Headers and footers” for a cleaner page."));
   upd();
 }
