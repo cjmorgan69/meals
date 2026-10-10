@@ -1,5 +1,6 @@
 import { h, mount, loading } from "../ui.js";
 import { listRecipes, photoUrl } from "../api.js";
+import { quickPlan } from "../quickplan.js";
 
 export async function render(root) {
   const recipes = await listRecipes();
@@ -17,9 +18,11 @@ export async function render(root) {
     const pic = h("div.pic", {}, "🍲");
     if (r.image_path) photoUrl(r.image_path).then((u) => { if (u) mount(pic, h("img", { src: u, alt: "", loading: "lazy" })); });
     const mins = (r.prep_minutes || 0) + (r.cook_minutes || 0);
-    return h("a.tile", { href: `#/recipe/${r.id}` }, pic, h("div.body", {},
-      h("div.title", {}, r.is_favourite ? "★ " : "", r.title),
-      h("div.meta", {}, [mins ? `${mins} min` : null, `serves ${r.servings}`, r.times_cooked ? `cooked ${r.times_cooked}×` : null].filter(Boolean).join(" · "))));
+    return h("div.tile", {},
+      h("a.tile-link", { href: `#/recipe/${r.id}` }, pic, h("div.body", {},
+        h("div.title", {}, r.is_favourite ? "★ " : "", r.title),
+        h("div.meta", {}, [mins ? `${mins} min` : null, `serves ${r.servings}`, r.times_cooked ? `cooked ${r.times_cooked}×` : null].filter(Boolean).join(" · ")))),
+      h("div.tile-actions", {}, h("button.btn.small", { "aria-label": `Add ${r.title} to plan`, onclick: () => quickPlan(r) }, "+ Plan")));
   }
 
   mount(root,

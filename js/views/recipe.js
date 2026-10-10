@@ -3,6 +3,7 @@ import { getRecipe, photoUrl, setFavourite, deleteRecipe, logCooked, addPlan } f
 import { formatQuantity, formatNumber, fmtDuration } from "../units.js";
 import { iso } from "../dates.js";
 import { printRecipes } from "../print.js";
+import { quickPlan } from "../quickplan.js";
 
 export async function render(root, [id]) {
   const r = await getRecipe(id);
@@ -54,7 +55,7 @@ export async function render(root, [id]) {
       r.tags.length ? h("div.row", {}, r.tags.map((t) => h("span.chip", {}, t))) : null,
       r.source_url ? h("p.hint", {}, "From ", h("a", { href: r.source_url, rel: "noopener noreferrer", target: "_blank" }, new URL(r.source_url).hostname)) : null,
       h("div.row", { style: "margin-top:.8rem" }, fav,
-        h("button.btn.small", { onclick: () => planModal(r) }, "Add to plan"),
+        h("button.btn.small", { onclick: () => quickPlan(r) }, "Add to plan"),
         h("button.btn.small", { onclick: () => cookedModal(r) }, "I cooked this"),
         h("button.btn.small", { onclick: (e) => busy(e.currentTarget, () => printRecipes([r], { title: r.title, cover: false })) }, "Print / PDF"),
         h("a.btn.small", { href: `#/edit/${r.id}` }, "Edit"),
@@ -70,15 +71,6 @@ export async function render(root, [id]) {
   drawIngredients();
 }
 
-function planModal(r) {
-  modal((box, close) => {
-    const date = h("input", { type: "date", value: iso(new Date()) });
-    const meal = h("select", {}, ["dinner", "lunch", "breakfast", "snack"].map((m) => h("option", { value: m }, m[0].toUpperCase() + m.slice(1))));
-    const go = h("button.btn.primary", { onclick: () => busy(go, async () => { await addPlan(r.id, date.value, meal.value); toast("Added to your plan"); close(); }) }, "Add to plan");
-    mount(box, h("h2", {}, "Add to plan"), h("div.field", {}, h("label", {}, "Day"), date), h("div.field", {}, h("label", {}, "Meal"), meal),
-      h("div.row.end", {}, h("button.btn", { onclick: close }, "Cancel"), go));
-  });
-}
 function cookedModal(r) {
   modal((box, close) => {
     let rating = 0;

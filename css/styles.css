@@ -63,7 +63,7 @@ textarea{min-height:90px;resize:vertical}
 
 /* recipes grid */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.9rem}
-.tile{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;text-decoration:none;color:inherit;box-shadow:var(--shadow)}
+.tile{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
 .tile:hover{border-color:var(--brand)}
 .tile .pic{aspect-ratio:4/3;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 20%,var(--surface)),color-mix(in srgb,var(--accent) 25%,var(--surface)));display:grid;place-items:center;font-size:2rem;overflow:hidden}
 .tile .pic img{width:100%;height:100%;object-fit:cover}
@@ -145,3 +145,5 @@ textarea{min-height:90px;resize:vertical}
 }
 .book-pick label{display:flex;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)}
 .book-pick input[type=checkbox]{width:1.2rem;height:1.2rem;accent-color:var(--brand)}
+.tile-link{display:flex;flex-direction:column;text-decoration:none;color:inherit;flex:1}
+.tile-actions{padding:0 .8rem .8rem}
