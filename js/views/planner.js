@@ -1,12 +1,14 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
 import { listRecipes, getPlan, addPlan, setPlanStatus, removePlan, logCooked } from "../api.js";
-import { iso, parseISO, addDays, startOfWeek, dayLabel, dateLabel } from "../dates.js";
+import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest } from "../weather.js";
 
-let weekStart = startOfWeek(new Date());
+const midnight = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+let weekStart = midnight(); // the plan shows 7 days from here, starting today
 let forecast = null;
 
 export async function render(root) {
+  if (weekStart < midnight()) weekStart = midnight(); // the app was left open past midnight: never show past days
   const from = iso(weekStart), to = iso(addDays(weekStart, 6));
   const [recipes, plan] = await Promise.all([listRecipes(), getPlan(from, to)]);
   const today = iso(new Date());
@@ -46,9 +48,10 @@ export async function render(root) {
   const nav = h("div.row.spread", {},
     h("h1", {}, "Plan"),
     h("div.row", {},
-      h("button.btn.small", { "aria-label": "Previous week", onclick: () => { weekStart = addDays(weekStart, -7); forecast = null; redraw(); } }, "‹"),
-      h("span", {}, `${dateLabel(weekStart)} – ${dateLabel(addDays(weekStart, 6))}`),
-      h("button.btn.small", { "aria-label": "Next week", onclick: () => { weekStart = addDays(weekStart, 7); forecast = null; redraw(); } }, "›")));
+      h("button.btn.small", { "aria-label": "Previous 7 days", disabled: iso(weekStart) <= today, onclick: () => { weekStart = addDays(weekStart, -7); if (weekStart < midnight()) weekStart = midnight(); forecast = null; redraw(); } }, "‹"),
+      h("span", {}, iso(weekStart) === today ? "Next 7 days" : `${dateLabel(weekStart)} – ${dateLabel(addDays(weekStart, 6))}`),
+      h("button.btn.small", { "aria-label": "Next 7 days", onclick: () => { weekStart = addDays(weekStart, 7); forecast = null; redraw(); } }, "›"),
+      iso(weekStart) !== today ? h("button.btn.small", { onclick: () => { weekStart = midnight(); forecast = null; redraw(); } }, "Today") : null));
 
   const ideas = h("div");
   const wxBtn = h("button.btn.small", { onclick: () => busy(wxBtn, async () => {
@@ -68,5 +71,5 @@ export async function render(root) {
         h("button.btn.small", { onclick: async () => { await addPlan(r.id, w?.date || today); redraw(); } }, "Plan it")))) : h("p.hint", {}, "Nothing new to suggest yet. Add more recipes."));
   } }, "Suggest dinners");
 
-  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list…")), ideas, h("div", {}, list));
+  mount(root, nav, h("div.row", { style: "margin:.5rem 0 1rem" }, ideaBtn, wxBtn, h("a.btn.small", { href: `#/shopping/${from}/${to}` }, "Shopping list for these days")), ideas, h("div", {}, list));
 }
