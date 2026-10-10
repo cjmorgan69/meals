@@ -1,5 +1,5 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
-import { listRecipes, getPlan, addPlan, setPlanStatus, removePlan, logCooked } from "../api.js";
+import { listRecipes, getPlan, addPlan, setPlanStatus, movePlan, removePlan, logCooked } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
 import { printPlan } from "../print.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest } from "../weather.js";
@@ -19,17 +19,48 @@ export async function render(root) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const list = days.map((d) => {
     const key = iso(d), entries = plan.filter((p) => p.planned_date === key), w = wx.get(key);
-    return h("div.day" + (key === today ? ".today" : ""), {},
+    return h("div.day" + (key === today ? ".today" : ""), { "data-date": key },
       h("div.d", {}, dayLabel(d), h("small", {}, dateLabel(d))),
       h("div", {},
         w ? h("div.wx", {}, weatherText(w)) : null,
         entries.map((p) => h("div.plan-item" + (p.status === "cooked" ? ".cooked" : ""), {},
+          h("span.grip", { title: "Drag to another day", "aria-label": "Drag to move to another day", onpointerdown: (e) => startDrag(e, p) }, "⠿"),
           h("a.t.grow", { href: `#/recipe/${p.recipe_id}` }, p.recipes?.title || "Recipe"),
           p.meal !== "dinner" ? h("span.chip", {}, p.meal) : null,
           p.status !== "cooked" ? h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { await setPlanStatus(p.id, "cooked"); toast("Marked as cooked"); redraw(); }) }, "Cooked") : h("span.chip", {}, "cooked"),
           h("button.btn.small.ghost", { "aria-label": "Remove from plan", onclick: async () => { await removePlan(p.id); redraw(); } }, "✕"))),
         h("button.btn.small.ghost", { onclick: () => pick(key) }, "+ Add meal")));
   });
+
+  // Drag a meal by its handle onto another day. Pointer events so it works with a finger as well as a mouse.
+  function startDrag(e, p) {
+    if (e.button > 0) return;
+    e.preventDefault();
+    const item = e.currentTarget.closest(".plan-item");
+    const label = p.recipes?.title || "Recipe";
+    const ghost = h("div.drag-ghost", {}, label);
+    document.body.append(ghost);
+    item.classList.add("dragging");
+    let over = null;
+    const dayAt = (x, y) => document.elementFromPoint(x, y)?.closest?.(".day[data-date]") || null;
+    const move = (ev) => {
+      ghost.style.left = `${ev.clientX + 12}px`; ghost.style.top = `${ev.clientY + 12}px`;
+      const d = dayAt(ev.clientX, ev.clientY);
+      if (d !== over) { over?.classList.remove("drop"); over = d; over?.classList.add("drop"); }
+    };
+    const end = async (ev) => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", cancel);
+      const target = ev.type === "pointerup" ? dayAt(ev.clientX, ev.clientY)?.dataset.date : null;
+      over?.classList.remove("drop"); ghost.remove(); item.classList.remove("dragging");
+      if (target && target !== p.planned_date) {
+        try { await movePlan(p.id, target); toast(`Moved to ${dateLabel(parseISO(target))}`); } catch (x) { toast(x.message || "Couldn't move that", true); }
+        redraw();
+      }
+    };
+    const cancel = (ev) => end(ev);
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", cancel);
+    move(e);
+  }
 
   function pick(date) {
     if (!recipes.length) { toast("Add a recipe first", true); return; }

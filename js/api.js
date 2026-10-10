@@ -113,6 +113,7 @@ export async function addPlan(recipeId, date, meal = "dinner") {
   must(await sb.from("meal_plan_entries").insert({ recipe_id: recipeId, planned_date: date, meal }));
 }
 export async function setPlanStatus(id, status) { must(await sb.from("meal_plan_entries").update({ status }).eq("id", id)); }
+export async function movePlan(id, date) { must(await sb.from("meal_plan_entries").update({ planned_date: date }).eq("id", id)); }
 export async function removePlan(id) { must(await sb.from("meal_plan_entries").delete().eq("id", id)); }
 
 // ---------- shopping ----------
