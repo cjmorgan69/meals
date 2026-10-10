@@ -178,3 +178,8 @@ textarea{min-height:90px;resize:vertical}
 .day.drop{background:color-mix(in srgb,var(--brand) 12%,transparent);outline:2px dashed var(--brand);outline-offset:-2px;border-radius:8px}
 .drag-ghost{position:fixed;z-index:1000;pointer-events:none;background:var(--card,#fff);border:1px solid var(--line);border-radius:8px;padding:.35rem .7rem;box-shadow:0 4px 14px rgba(0,0,0,.2);font-weight:600;max-width:70vw}
 @media print{.grip,.drag-ghost{display:none!important}}
+
+.pick-row{display:flex;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--line);background:var(--bg,transparent)}
+.pick-row.dragging{opacity:.5;outline:2px dashed var(--brand);outline-offset:-2px}
+.pick-row input[type=checkbox]{width:1.2rem;height:1.2rem;accent-color:var(--brand)}
+.pick-row .grow{flex:1;min-width:0}
