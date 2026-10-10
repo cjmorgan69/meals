@@ -138,6 +138,7 @@ export async function addManualItem(listId, name) {
   must(await sb.from("shopping_list_items").insert({ list_id: listId, name: name.trim(), category: guessCategory(name), is_manual: true }));
 }
 export async function removeItem(id) { must(await sb.from("shopping_list_items").delete().eq("id", id)); }
+export async function clearAllItems(listId) { must(await sb.from("shopping_list_items").delete().eq("list_id", listId)); }
 export async function clearChecked(listId) { must(await sb.from("shopping_list_items").delete().eq("list_id", listId).eq("checked", true)); }
 
 // ---------- import (edge function) ----------

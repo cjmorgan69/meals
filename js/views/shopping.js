@@ -1,6 +1,6 @@
-import { h, mount, busy, toast } from "../ui.js";
-import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, recipeTitles } from "../api.js";
-import { categoryLabel, CATEGORIES, formatQuantity } from "../units.js";
+import { h, mount, busy, toast, confirmBox } from "../ui.js";
+import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles } from "../api.js";
+import { categoryLabel, categoryIcon, CATEGORIES, formatQuantity } from "../units.js";
 import { iso, addDays, parseISO, dateLabel } from "../dates.js";
 
 const getPref = () => { try { return localStorage.getItem("shopView") === "meal" ? "meal" : "aisle"; } catch { return "aisle"; } };
@@ -71,17 +71,23 @@ export async function render(root, [fromArg, toArg]) {
         h("button", { role: "tab", "aria-selected": String(view === "aisle"), onclick: () => { view = "aisle"; setPref(view); drawList(); } }, "By aisle"),
         h("button", { role: "tab", "aria-selected": String(view === "meal"), onclick: () => { view = "meal"; setPref(view); drawList(); } }, "By meal")),
       h("div.row", {}, h("span.hint", {}, items.length ? `${open} to get` : ""),
-        items.some((i) => i.checked) ? h("button.btn.small", { onclick: async () => { try { await clearChecked(list.id); items = items.filter((i) => !i.checked); drawList(); } catch (x) { toast(x.message, true); } } }, "Clear ticked") : null));
+        items.some((i) => i.checked) ? h("button.btn.small", { onclick: async () => { try { await clearChecked(list.id); items = items.filter((i) => !i.checked); drawList(); } catch (x) { toast(x.message, true); } } }, "Clear ticked") : null,
+        items.length ? h("button.btn.small", { onclick: async () => {
+          if (!(await confirmBox("Clear the whole list?", "Every item comes off the list, ticked or not. Your meal plan is not changed.", "Clear list"))) return;
+          try { await clearAllItems(list.id); items = []; msg = "List cleared."; msgBox.textContent = msg; drawList(); } catch (x) { toast(x.message, true); }
+        } }, "Clear list") : null));
 
     if (!items.length) {
       mount(listBox, h("div.empty", {}, h("h2", {}, "Nothing to buy yet"), h("p", {}, "Choose your dates above and build the list from your plan, or add items by hand.")));
       return;
     }
     if (view === "aisle") {
-      mount(listBox, CATEGORIES.map(([k]) => [k, items.filter((i) => i.category === k)]).filter(([, a]) => a.length).map(([k, arr]) => {
-        const sorted = sortItems(arr);
-        return h("section", {}, h("h3.cat-h", {}, categoryLabel(k)), sorted.map((i) => itemRow(i, false)));
-      }));
+      // Everything still to buy, aisle by aisle; everything ticked sinks to one block at the very bottom.
+      const todo = CATEGORIES.map(([k]) => [k, sortItems(items.filter((i) => i.category === k && !i.checked))]).filter(([, a]) => a.length);
+      const got = CATEGORIES.flatMap(([k]) => sortItems(items.filter((i) => i.category === k && i.checked)));
+      mount(listBox,
+        todo.map(([k, arr]) => h("section", {}, h("h3.cat-h", {}, h("span.cat-ic", { "aria-hidden": "true" }, categoryIcon(k)), categoryLabel(k)), arr.map((i) => itemRow(i, false)))),
+        got.length ? h("section.got", {}, h("h3.cat-h", {}, h("span.cat-ic", { "aria-hidden": "true" }, "✅"), `In the trolley (${got.length})`), got.map((i) => itemRow(i, false))) : null);
     } else {
       const groups = new Map(); // recipe id (or "other") -> items
       for (const i of items) {
@@ -93,7 +99,7 @@ export async function render(root, [fromArg, toArg]) {
       }
       const order = [...groups.keys()].sort((a, b) => (a === "other") - (b === "other") || (titles.get(a) || "").localeCompare(titles.get(b) || ""));
       mount(listBox, h("p.hint", {}, "An item needed by more than one meal appears under each, with the combined amount. Ticking it ticks it everywhere."),
-        order.map((id) => h("section", {}, h("h3.cat-h", {}, id === "other" ? "Added by hand" : titles.get(id)), sortItems(groups.get(id)).map((i) => itemRow(i, true)))));
+        order.map((id) => h("section", {}, h("h3.cat-h", {}, h("span.cat-ic", { "aria-hidden": "true" }, id === "other" ? "✍️" : "🍽️"), id === "other" ? "Added by hand" : titles.get(id)), sortItems(groups.get(id)).map((i) => itemRow(i, true)))));
     }
   }
 

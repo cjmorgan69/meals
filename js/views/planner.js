@@ -1,5 +1,5 @@
 import { h, mount, toast, busy, modal, confirmBox } from "../ui.js";
-import { listRecipes, getPlan, addPlan, setPlanStatus, movePlan, removePlan, logCooked } from "../api.js";
+import { listRecipes, photoUrl, getPlan, addPlan, setPlanStatus, movePlan, removePlan, logCooked } from "../api.js";
 import { iso, parseISO, addDays, dayLabel, dateLabel } from "../dates.js";
 import { printPlan } from "../print.js";
 import { forecastFor, getPosition, classifyWeather, weatherText, suggest } from "../weather.js";
@@ -16,6 +16,11 @@ export async function render(root) {
   const wx = new Map((forecast || []).map((d) => [d.date, d]));
   const redraw = () => render(root);
 
+  const thumb = (p) => {
+    const box = h("span.thumb", { "aria-hidden": "true" }, "🍲");
+    if (p.recipes?.image_path) photoUrl(p.recipes.image_path).then((u) => { if (u) mount(box, h("img", { src: u, alt: "", loading: "lazy", width: 40, height: 40 })); }).catch(() => {});
+    return box;
+  };
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const list = days.map((d) => {
     const key = iso(d), entries = plan.filter((p) => p.planned_date === key), w = wx.get(key);
@@ -25,6 +30,7 @@ export async function render(root) {
         w ? h("div.wx", {}, weatherText(w)) : null,
         entries.map((p) => h("div.plan-item" + (p.status === "cooked" ? ".cooked" : ""), {},
           h("span.grip", { title: "Drag to another day", "aria-label": "Drag to move to another day", onpointerdown: (e) => startDrag(e, p) }, "⠿"),
+          thumb(p),
           h("a.t.grow", { href: `#/recipe/${p.recipe_id}` }, p.recipes?.title || "Recipe"),
           p.meal !== "dinner" ? h("span.chip", {}, p.meal) : null,
           p.status !== "cooked" ? h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { await setPlanStatus(p.id, "cooked"); toast("Marked as cooked"); redraw(); }) }, "Cooked") : h("span.chip", {}, "cooked"),

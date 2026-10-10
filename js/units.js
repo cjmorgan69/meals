@@ -2,6 +2,8 @@ export const CATEGORIES = [
   ["produce", "Fruit & veg"], ["meat_seafood", "Meat & seafood"], ["dairy_eggs", "Dairy & eggs"], ["bakery", "Bakery"],
   ["pantry", "Pantry"], ["frozen", "Frozen"], ["drinks", "Drinks"], ["household", "Household"], ["other", "Other"],
 ];
+export const CATEGORY_ICON = { produce: "🥦", meat_seafood: "🥩", dairy_eggs: "🧀", bakery: "🥖", pantry: "🥫", frozen: "🧊", drinks: "🥤", household: "🧽", other: "🛒" };
+export const categoryIcon = (c) => CATEGORY_ICON[c] || "🛒";
 export const categoryLabel = (c) => (CATEGORIES.find((x) => x[0] === c) || [, "Other"])[1];
 export const UNITS = ["", "g", "kg", "ml", "l", "tsp", "tbsp", "cup", "each", "clove", "bunch", "can", "pinch"];
 
