@@ -201,6 +201,13 @@ export async function getUsage() {
 }
 export async function setDisplayName(name) { must(await sb.from("profiles").update({ display_name: name || null }).eq("id", await uid())); }
 
+// ---------- household (family sharing) ----------
+export async function getHousehold() { return must(await sb.rpc("get_household")); }
+export async function createHousehold(name) { return must(await sb.rpc("create_household", { p_name: name })); }
+export async function joinHousehold(code) { return must(await sb.rpc("join_household", { p_code: code })); }
+export async function leaveHousehold() { must(await sb.rpc("leave_household")); }
+export async function newJoinCode() { return must(await sb.rpc("new_join_code")); }
+
 export async function exportAll() {
   const ids = (await listRecipes()).map((r) => r.id);
   const recipes = []; for (const id of ids) recipes.push(await getRecipe(id));
