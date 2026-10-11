@@ -1,5 +1,5 @@
 import { h, mount, toast, busy, confirmBox, modal } from "../ui.js";
-import { getRecipe, photoUrl, setFavourite, deleteRecipe, addPlan } from "../api.js";
+import { getRecipe, photoUrl, setFavourite, deleteRecipe, addPlan, addRecipeToList } from "../api.js";
 import { formatQuantity, formatNumber, fmtDuration } from "../units.js";
 import { iso } from "../dates.js";
 import { printRecipes } from "../print.js";
@@ -56,6 +56,7 @@ export async function render(root, [id]) {
       r.source_url ? h("p.hint", {}, "From ", h("a", { href: r.source_url, rel: "noopener noreferrer", target: "_blank" }, new URL(r.source_url).hostname)) : null,
       h("div.row", { style: "margin-top:.8rem" }, r.video_url ? h("a.btn.small.primary", { href: r.video_url, target: "_blank", rel: "noopener noreferrer" }, "▶ Watch video") : null, fav,
         h("button.btn.small", { onclick: () => quickPlan(r) }, "Add to plan"),
+        h("button.btn.small", { onclick: (e) => busy(e.currentTarget, async () => { const n = await addRecipeToList(r.id); toast(`${n} item${n === 1 ? "" : "s"} added to your shopping list`); }) }, "Add to shopping list"),
         h("button.btn.small", { onclick: (e) => busy(e.currentTarget, () => printRecipes([r], { title: r.title, cover: false })) }, "Print / PDF"),
         h("a.btn.small", { href: `#/edit/${r.id}` }, "Edit"),
         h("button.btn.small.danger", { onclick: async () => { if (await confirmBox("Delete this recipe?", `“${r.title}” will be removed from your recipes and any meal plans.`)) { await deleteRecipe(r.id, r.image_path); toast("Deleted"); location.hash = "#/recipes"; } } }, "Delete"))),

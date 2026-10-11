@@ -166,6 +166,48 @@ export async function addManualItem(listId, name) {
   must(await sb.from("shopping_list_items").insert({ list_id: listId, name: name.trim(), category: guessCategory(name), is_manual: true }));
 }
 export async function removeItem(id) { must(await sb.from("shopping_list_items").delete().eq("id", id)); }
+const listKey = (name, unit) => `${cleanDisplayName(String(name || "")).toLowerCase()}|${unit || ""}`;
+/** The ticked items on a list, so a rebuild can tick them again (things you already have stay ticked). */
+export async function snapshotChecked(listId) {
+  const rows = must(await sb.from("shopping_list_items").select("name,unit").eq("list_id", listId).eq("checked", true));
+  return new Set(rows.map((r) => listKey(r.name, r.unit)));
+}
+export async function restoreChecked(listId, keys) {
+  if (!keys.size) return;
+  const rows = must(await sb.from("shopping_list_items").select("id,name,unit,checked").eq("list_id", listId));
+  const ids = rows.filter((r) => !r.checked && keys.has(listKey(r.name, r.unit))).map((r) => r.id);
+  if (ids.length) must(await sb.from("shopping_list_items").update({ checked: true }).in("id", ids));
+}
+
+/** Adds one recipe's ingredients straight to the shopping list without rebuilding it.
+ *  Amounts are added to matching unticked items; ticked items (already in the house) are left ticked. Returns how many items were touched. */
+export async function addRecipeToList(recipeId) {
+  const [list, recipe] = await Promise.all([getList(), getRecipe(recipeId)]);
+  if (!recipe) throw new Error("Recipe not found.");
+  const items = await listItems(list.id);
+  const byKey = new Map(items.map((i) => [listKey(i.name, i.unit), i]));
+  let touched = 0;
+  for (const ing of recipe.ingredients.filter((i) => !i.optional)) {
+    const name = cleanDisplayName(stripQuantity(ing.raw_text || "")) || (ing.raw_text || "").trim();
+    if (!name) continue;
+    let qty = ing.quantity == null ? null : Number(ing.quantity), unit = ing.unit || null;
+    if (unit === "kg" && qty != null) { qty *= 1000; unit = "g"; } // the list adds up in grams and millilitres
+    if (unit === "l" && qty != null) { qty *= 1000; unit = "ml"; }
+    const hit = byKey.get(listKey(name, unit));
+    if (hit) {
+      const ids = [...new Set([...(hit.source_recipe_ids || []), recipe.id])];
+      const patch = { source_recipe_ids: ids };
+      if (!hit.checked && hit.quantity != null && qty != null) patch.quantity = Math.round((Number(hit.quantity) + qty) * 100) / 100;
+      must(await sb.from("shopping_list_items").update(patch).eq("id", hit.id));
+    } else {
+      const row = must(await sb.from("shopping_list_items").insert({ list_id: list.id, name, category: guessCategory(name), quantity: qty, unit, source_recipe_ids: [recipe.id] }).select("*").single());
+      byKey.set(listKey(name, unit), row);
+    }
+    touched++;
+  }
+  return touched;
+}
+
 /** The household staples recipe, or null if none has been set up. */
 export async function getStaples() {
   const row = must(await sb.from("recipes").select("id").contains("tags", [STAPLES_TAG]).order("created_at").limit(1).maybeSingle());

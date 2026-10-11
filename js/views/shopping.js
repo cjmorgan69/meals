@@ -1,5 +1,5 @@
 import { h, mount, busy, toast, confirmBox } from "../ui.js";
-import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles, getStaples, applyStaples } from "../api.js";
+import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles, getStaples, applyStaples, snapshotChecked, restoreChecked } from "../api.js";
 import { categoryLabel, categoryIcon, CATEGORIES, formatQuantity } from "../units.js";
 import { fmtShop } from "../shopamount.js";
 import { cleanDisplayName } from "../ingredient-text.js";
@@ -38,8 +38,10 @@ export async function render(root, [fromArg, toArg]) {
     if (!fromIn.value || !toIn.value) { err.textContent = "Pick a start and end date."; return; }
     if (toIn.value < fromIn.value) { err.textContent = "The end date is before the start date."; return; }
     busy(build, async () => {
+      const ticked = await snapshotChecked(list.id); // things you've already ticked off stay ticked
       const n = await generateList(list.id, fromIn.value, toIn.value);
       if (useStaples && staples) await applyStaples(list.id, staples, true); // a rebuild clears them, so put them back
+      await restoreChecked(list.id, ticked);
       from = fromIn.value; to = toIn.value;
       items = await listItems(list.id);
       titles = await recipeTitles([...new Set(items.flatMap((i) => i.source_recipe_ids || []))]);
@@ -51,7 +53,7 @@ export async function render(root, [fromArg, toArg]) {
     h("h2", {}, "Build from your plan"),
     h("div.row", {}, h("div.field", {}, h("label", { for: "df" }, "From"), fromIn), h("div.field", {}, h("label", { for: "dt" }, "To"), toIn)),
     h("div.row", { style: "margin-bottom:.8rem" }, preset("Today", 1), preset("Next 3 days", 3), preset("Next 7 days", 7), preset("Next 14 days", 14)),
-    h("p.hint", {}, "Rebuilding replaces the list built from your plan. Items you added yourself stay."),
+    h("p.hint", {}, "Rebuilding replaces the list built from your plan. Items you added yourself stay, and anything you've already ticked stays ticked."),
     err, build);
 
   // ---- list ----
