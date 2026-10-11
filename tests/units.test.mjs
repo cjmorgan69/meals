@@ -130,3 +130,10 @@ test("category comes from tags, then title", () => {
   assert.equal(categoryOf({ tags: ["dessert"], title: "Beef stew" }), "Desserts");
   assert.equal(categoryOf({ tags: [], title: "Something" }), "Other");
 });
+
+import { exactCategory } from "../js/recipe-category.js";
+test("an exact category tag beats keyword guessing", () => {
+  assert.equal(categoryOf({ tags: ["pasta", "snack", "dinner"], title: "x" }), "Dinner"); // the last exact tag wins
+  assert.equal(categoryOf({ tags: ["rice", "dessert"], title: "Rice pudding" }), "Desserts");
+  assert.equal(exactCategory(["italian"]), null);
+});

@@ -3,6 +3,7 @@ import { getRecipe, saveRecipe, uploadPhoto, photoUrl, deletePhoto, STAPLES_TAG 
 import { state } from "../state.js";
 import { UNITS, formatNumber, parseQuantity } from "../units.js";
 import { downscaleImage } from "../image.js";
+import { CATEGORY_ORDER, CATEGORY_TAG, exactCategory, withoutCategoryTags, categoryOf } from "../recipe-category.js";
 import { stripQuantity, ingredientName, composeLine, cleanDisplayName } from "../ingredient-text.js";
 
 const blank = () => ({ title: "", description: "", servings: 4, prep_minutes: null, cook_minutes: null, tags: [], source: "manual", source_url: null, image_path: null, ingredients: [], steps: [] });
@@ -30,6 +31,9 @@ export async function render(root, [id]) {
     video: h("input", { type: "url", id: "v", value: r.video_url || "", placeholder: "https://www.youtube.com/watch?v=…" }),
     tags: h("input", { type: "text", id: "g", value: (r.tags || []).join(", "), placeholder: "vegetarian, quick" }),
   };
+  const catSel = h("select", { id: "cat" },
+    h("option", { value: "" }, `Automatic (${categoryOf(r)})`),
+    CATEGORY_ORDER.filter((c) => CATEGORY_TAG[c]).map((c) => h("option", { value: c, selected: exactCategory(r.tags) === c }, c)));
   const ingBox = h("div"), stepBox = h("div");
   // The text box holds the ingredient without its amount; the amount lives in the Qty and unit boxes.
   const ings = r.ingredients.map((i) => {
@@ -84,7 +88,11 @@ export async function render(root, [id]) {
       const rec = {
         title: f.title.value, description: f.desc.value.trim(), servings: Math.max(1, Number(f.serves.value) || 4),
         prep_minutes: f.prep.value === "" ? null : Number(f.prep.value), cook_minutes: f.cook.value === "" ? null : Number(f.cook.value),
-        tags: [...new Set([...f.tags.value.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean), ...(isStaples ? [STAPLES_TAG] : [])])],
+        tags: (() => {
+          let t = f.tags.value.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+          if (catSel.value) t = [...withoutCategoryTags(t), CATEGORY_TAG[catSel.value]]; // the chosen category wins
+          return [...new Set([...t, ...(isStaples ? [STAPLES_TAG] : [])])];
+        })(),
         source: r.source || "manual", source_url: r.source_url || null, video_url: vid || null, image_path,
         ingredients: ings.map((i) => ({ raw_text: i.raw_text, name: i.name || ingredientName(i.label), quantity: i.quantity, unit: i.unit, note: i.note, optional: i.optional, group_label: i.group_label })),
         steps: steps.map((s) => ({ instruction: s.instruction || "", timer_seconds: s.timer_seconds ?? null })),
@@ -104,6 +112,7 @@ export async function render(root, [id]) {
       h("div.field", {}, h("label", { for: "c" }, "Cook (min)"), f.cook)),
     isStaples ? null : h("div.field", {}, h("label", { for: "v" }, "Video link"), f.video, h("span.hint", {}, "Optional. A YouTube or Vimeo link.")),
     isStaples ? null : h("div.field", {}, h("label", { for: "g" }, "Tags"), f.tags, h("span.hint", {}, "Separate with commas.")),
+    isStaples ? null : h("div.field", {}, h("label", { for: "cat" }, "Category"), catSel, h("span.hint", {}, "Where it sits on the Recipes screen. Automatic works it out from the tags.")),
     isStaples ? null : h("div.field", {}, h("label", {}, "Photo"), photoIn, photoPrev),
     h("h2", {}, "Ingredients"), ingBox,
     h("button.btn.small", { type: "button", onclick: () => { ings.push({ raw_text: "", label: "", qtyText: "", unit: null, name: "" }); drawIngs(); ingBox.querySelector(".ed-row:last-child input[aria-label=Ingredient]")?.focus(); } }, "Add ingredient"),
