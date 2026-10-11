@@ -1,5 +1,5 @@
 import { h, mount, busy, toast } from "../ui.js";
-import { getRecipe, saveRecipe, uploadPhoto, photoUrl, deletePhoto } from "../api.js";
+import { getRecipe, saveRecipe, uploadPhoto, photoUrl, deletePhoto, STAPLES_TAG } from "../api.js";
 import { state } from "../state.js";
 import { UNITS, formatNumber, parseQuantity } from "../units.js";
 import { downscaleImage } from "../image.js";
@@ -14,6 +14,7 @@ export async function render(root, [id]) {
   else if (state.draft) r = { ...blank(), ...state.draft };
   else r = blank();
   const fromDraft = !editing && !!state.draft;
+  const isStaples = (r.tags || []).includes(STAPLES_TAG);
   let photoBlob = !editing ? state.draftPhoto : null;
   let removePhoto = false;
   // Textareas grow with their text so the phone never scrolls inside a box while you type.
@@ -83,7 +84,7 @@ export async function render(root, [id]) {
       const rec = {
         title: f.title.value, description: f.desc.value.trim(), servings: Math.max(1, Number(f.serves.value) || 4),
         prep_minutes: f.prep.value === "" ? null : Number(f.prep.value), cook_minutes: f.cook.value === "" ? null : Number(f.cook.value),
-        tags: f.tags.value.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean),
+        tags: [...new Set([...f.tags.value.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean), ...(isStaples ? [STAPLES_TAG] : [])])],
         source: r.source || "manual", source_url: r.source_url || null, video_url: vid || null, image_path,
         ingredients: ings.map((i) => ({ raw_text: i.raw_text, name: i.name || ingredientName(i.label), quantity: i.quantity, unit: i.unit, note: i.note, optional: i.optional, group_label: i.group_label })),
         steps: steps.map((s) => ({ instruction: s.instruction || "", timer_seconds: s.timer_seconds ?? null })),
@@ -92,27 +93,27 @@ export async function render(root, [id]) {
       if (removePhoto && r.image_path && !photoBlob) { try { await deletePhoto(r.image_path); } catch { /* the file is just left behind */ } }
       state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false;
       toast("Saved");
-      location.hash = `#/recipe/${rid}`;
+      location.hash = isStaples ? "#/shopping" : `#/recipe/${rid}`;
     });
   } },
-    h("div.field", {}, h("label", { for: "t" }, "Title"), f.title),
-    h("div.field", {}, h("label", { for: "d" }, "Description"), f.desc),
-    h("div.row", {},
+    isStaples ? null : h("div.field", {}, h("label", { for: "t" }, "Title"), f.title),
+    isStaples ? h("p.hint", {}, "List the things you buy every week. Use the Include household staples switch on the Shopping screen to add them to a list or leave them off.") : h("div.field", {}, h("label", { for: "d" }, "Description"), f.desc),
+    isStaples ? null : h("div.row", {},
       h("div.field", {}, h("label", { for: "s" }, "Serves"), f.serves),
       h("div.field", {}, h("label", { for: "p" }, "Prep (min)"), f.prep),
       h("div.field", {}, h("label", { for: "c" }, "Cook (min)"), f.cook)),
-    h("div.field", {}, h("label", { for: "v" }, "Video link"), f.video, h("span.hint", {}, "Optional. A YouTube or Vimeo link.")),
-    h("div.field", {}, h("label", { for: "g" }, "Tags"), f.tags, h("span.hint", {}, "Separate with commas.")),
-    h("div.field", {}, h("label", {}, "Photo"), photoIn, photoPrev),
+    isStaples ? null : h("div.field", {}, h("label", { for: "v" }, "Video link"), f.video, h("span.hint", {}, "Optional. A YouTube or Vimeo link.")),
+    isStaples ? null : h("div.field", {}, h("label", { for: "g" }, "Tags"), f.tags, h("span.hint", {}, "Separate with commas.")),
+    isStaples ? null : h("div.field", {}, h("label", {}, "Photo"), photoIn, photoPrev),
     h("h2", {}, "Ingredients"), ingBox,
     h("button.btn.small", { type: "button", onclick: () => { ings.push({ raw_text: "", label: "", qtyText: "", unit: null, name: "" }); drawIngs(); ingBox.querySelector(".ed-row:last-child input[aria-label=Ingredient]")?.focus(); } }, "Add ingredient"),
-    h("h2", { style: "margin-top:1.4rem" }, "Method"), stepBox,
-    h("button.btn.small", { type: "button", onclick: () => { steps.push({ instruction: "", timer_seconds: null }); drawSteps(); stepBox.querySelector(".ed-step:last-child textarea")?.focus(); } }, "Add step"),
+    isStaples ? null : h("h2", { style: "margin-top:1.4rem" }, "Method"), isStaples ? null : stepBox,
+    isStaples ? null : h("button.btn.small", { type: "button", onclick: () => { steps.push({ instruction: "", timer_seconds: null }); drawSteps(); stepBox.querySelector(".ed-step:last-child textarea")?.focus(); } }, "Add step"),
     err,
-    h("div.row.end", { style: "margin-top:1.2rem" }, h("a.btn", { href: editing ? `#/recipe/${editing}` : "#/recipes", onclick: () => { if (!editing) { state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false; } } }, "Cancel"), save));
+    h("div.row.end", { style: "margin-top:1.2rem" }, h("a.btn", { href: isStaples ? "#/shopping" : editing ? `#/recipe/${editing}` : "#/recipes", onclick: () => { if (!editing) { state.draft = null; state.draftPhoto = null; state.draftPhotoFromWeb = false; } } }, "Cancel"), save));
 
-  mount(root, h("h1", {}, editing ? "Edit recipe" : fromDraft ? "Check the imported recipe" : "New recipe"),
-    fromDraft ? h("p.hint", {}, "Imported recipes can contain mistakes. Check the quantities before you save.") : null,
+  mount(root, h("h1", {}, isStaples ? "Household staples" : editing ? "Edit recipe" : fromDraft ? "Check the imported recipe" : "New recipe"),
+    fromDraft && !isStaples ? h("p.hint", {}, "Imported recipes can contain mistakes. Check the quantities before you save.") : null,
     h("div.card", {}, form));
 }
 

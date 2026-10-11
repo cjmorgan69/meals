@@ -3,6 +3,10 @@ import { PHOTO_BUCKET } from "./config.js";
 import { guessCategory } from "./categories.js";
 import { summariseUsage } from "./usage.js";
 import { ingredientTexts } from "./useup.js";
+import { stripQuantity, cleanDisplayName } from "./ingredient-text.js";
+
+/** The tag that marks the household staples list (an ordinary recipe, kept out of the recipe book). */
+export const STAPLES_TAG = "household-staples";
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || "Something went wrong."); return data; };
 
@@ -29,7 +33,7 @@ export async function listRecipes() {
     sb.from("recipes").select("id,title,description,image_path,servings,prep_minutes,cook_minutes,tags,is_favourite,created_at").order("created_at", { ascending: false }).then(must),
     usageFor(null),
   ]);
-  return recipes.map((r) => ({ ...r, times_planned: usage.get(r.id)?.times_planned ?? 0, last_planned_on: usage.get(r.id)?.last_planned_on ?? null }));
+  return recipes.filter((r) => !(r.tags || []).includes(STAPLES_TAG)).map((r) => ({ ...r, times_planned: usage.get(r.id)?.times_planned ?? 0, last_planned_on: usage.get(r.id)?.last_planned_on ?? null }));
 }
 
 export async function getRecipe(id) {
@@ -162,6 +166,23 @@ export async function addManualItem(listId, name) {
   must(await sb.from("shopping_list_items").insert({ list_id: listId, name: name.trim(), category: guessCategory(name), is_manual: true }));
 }
 export async function removeItem(id) { must(await sb.from("shopping_list_items").delete().eq("id", id)); }
+/** The household staples recipe, or null if none has been set up. */
+export async function getStaples() {
+  const row = must(await sb.from("recipes").select("id").contains("tags", [STAPLES_TAG]).order("created_at").limit(1).maybeSingle());
+  return row ? getRecipe(row.id) : null;
+}
+/** Puts the staples on the list (replacing any already there), or takes them off. Returns the number added. */
+export async function applyStaples(listId, staples, on) {
+  if (!staples) return 0;
+  must(await sb.from("shopping_list_items").delete().eq("list_id", listId).contains("source_recipe_ids", [staples.id]));
+  if (!on) return 0;
+  const rows = staples.ingredients.filter((i) => !i.optional).map((i) => {
+    const name = cleanDisplayName(stripQuantity(i.raw_text || "")) || (i.raw_text || "").trim();
+    return { list_id: listId, name, category: guessCategory(name), quantity: i.quantity ?? null, unit: i.unit || null, source_recipe_ids: [staples.id] };
+  }).filter((r) => r.name);
+  if (rows.length) must(await sb.from("shopping_list_items").insert(rows));
+  return rows.length;
+}
 export async function clearAllItems(listId) { must(await sb.from("shopping_list_items").delete().eq("list_id", listId)); }
 export async function clearChecked(listId) { must(await sb.from("shopping_list_items").delete().eq("list_id", listId).eq("checked", true)); }
 

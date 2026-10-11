@@ -1,5 +1,5 @@
 import { h, mount, busy, toast, confirmBox } from "../ui.js";
-import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles } from "../api.js";
+import { getList, listItems, generateList, setChecked, addManualItem, removeItem, clearChecked, clearAllItems, recipeTitles, getStaples, applyStaples } from "../api.js";
 import { categoryLabel, categoryIcon, CATEGORIES, formatQuantity } from "../units.js";
 import { fmtShop } from "../shopamount.js";
 import { cleanDisplayName } from "../ingredient-text.js";
@@ -8,8 +8,13 @@ import { iso, addDays, parseISO, dateLabel } from "../dates.js";
 const getPref = () => { try { return localStorage.getItem("shopView") === "meal" ? "meal" : "aisle"; } catch { return "aisle"; } };
 const setPref = (v) => { try { localStorage.setItem("shopView", v); } catch { /* ignore */ } };
 
+const getStaplesPref = () => { try { return localStorage.getItem("useStaples") !== "off"; } catch { return true; } };
+const setStaplesPref = (v) => { try { localStorage.setItem("useStaples", v ? "on" : "off"); } catch { /* ignore */ } };
+
 export async function render(root, [fromArg, toArg]) {
   const list = await getList();
+  let staples = await getStaples().catch(() => null);
+  let useStaples = getStaplesPref();
   let items = await listItems(list.id);
   let view = getPref();
   let titles = await recipeTitles([...new Set(items.flatMap((i) => i.source_recipe_ids || []))]);
@@ -34,6 +39,7 @@ export async function render(root, [fromArg, toArg]) {
     if (toIn.value < fromIn.value) { err.textContent = "The end date is before the start date."; return; }
     busy(build, async () => {
       const n = await generateList(list.id, fromIn.value, toIn.value);
+      if (useStaples && staples) await applyStaples(list.id, staples, true); // a rebuild clears them, so put them back
       from = fromIn.value; to = toIn.value;
       items = await listItems(list.id);
       titles = await recipeTitles([...new Set(items.flatMap((i) => i.source_recipe_ids || []))]);
@@ -113,8 +119,33 @@ export async function render(root, [fromArg, toArg]) {
     try { await addManualItem(list.id, add.value); items = await listItems(list.id); add.value = ""; drawList(); } catch (x) { toast(x.message, true); }
   } }, h("div.grow", {}, add), h("button.btn.primary", { type: "submit" }, "Add"));
 
-  function drawAll() { msgBox.textContent = msg; drawList(); }
+  // ---- household staples ----
+  const staplesBox = h("div.card");
+  async function setStaples(on) {
+    useStaples = on; setStaplesPref(on);
+    try {
+      await applyStaples(list.id, staples, on);
+      items = await listItems(list.id);
+      titles = await recipeTitles([...new Set(items.flatMap((i) => i.source_recipe_ids || []))]);
+    } catch (x) { toast(x.message, true); }
+    drawAll();
+  }
+  function drawStaples() {
+    if (!staples) {
+      mount(staplesBox, h("div.row.spread", {}, h("div", {}, h("strong", {}, "Household staples"),
+        h("p.hint", { style: "margin:.2rem 0 0" }, "Things you buy every week, like milk, bread and toilet paper. Set them up once and they join the list each time.")),
+        h("a.btn", { href: "#/staples" }, "Set up")));
+      return;
+    }
+    const cb = h("input", { type: "checkbox", id: "stp", checked: useStaples, onchange: (e) => setStaples(e.target.checked) });
+    const n = staples.ingredients.filter((i) => !i.optional).length;
+    mount(staplesBox, h("div.row.spread", {},
+      h("div.row", { style: "gap:.5rem;flex-wrap:nowrap" }, cb, h("label", { for: "stp" }, h("strong", {}, "Include household staples"), h("span.hint", { style: "display:block" }, `${n} item${n === 1 ? "" : "s"}`))),
+      h("a.btn.small", { href: `#/edit/${staples.id}` }, "Edit staples")));
+  }
 
-  mount(root, h("h1", {}, "Shopping"), panel, msgBox, h("div", { style: "margin-top:1rem" }, toolbar), addForm, listBox);
+  function drawAll() { msgBox.textContent = msg; drawStaples(); drawList(); }
+
+  mount(root, h("h1", {}, "Shopping"), panel, staplesBox, msgBox, h("div", { style: "margin-top:1rem" }, toolbar), addForm, listBox);
   drawAll();
 }
