@@ -141,7 +141,7 @@ export async function render(root, [fromArg, toArg]) {
     const n = staples.ingredients.filter((i) => !i.optional).length;
     mount(staplesBox, h("div.row.spread", {},
       h("div.row", { style: "gap:.5rem;flex-wrap:nowrap" }, cb, h("label", { for: "stp" }, h("strong", {}, "Include household staples"), h("span.hint", { style: "display:block" }, `${n} item${n === 1 ? "" : "s"}`))),
-      h("a.btn.small", { href: `#/edit/${staples.id}` }, "Edit staples")));
+      h("a.btn.small", { href: "#/staples" }, "Edit staples")));
   }
 
   function drawAll() { msgBox.textContent = msg; drawStaples(); drawList(); }
